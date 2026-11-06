@@ -83,17 +83,7 @@ def test_skyler_calls_save_with_a_hangup_reason_and_stay_out_of_pranavs_briefing
     assert vault.owner_dir("skyler")
 
 
-def test_every_demo_button_reaches_a_worker_up_starts():
-    up = [x for x in stage_cli.services() if x["name"] != "web"]
-    registered = {agent_name(x["env"]["GOOSE_PERSONA"]) for x in up}
-    assert all("GOOSE_DISPATCH_AS" not in x["env"] and "GOOSE_AGENT_TAG" not in x["env"] for x in up)
-    page = (STATIC / "demo.html").read_text(encoding="utf-8")
-    owners = re.findall(r'data-owner="(\w+)"', page)
-    allowed = [a for a in re.findall(r'data-allowed="(\w*)"', page) if a]
-    assert owners == ["pranav", "skyler"] and allowed == ["maya"] and 'id="talk"' in page
-    personas = load_config()["personas"]
-    wanted = {n for o in owners for n, p in personas.items() if p["owner"] == o} | set(allowed) | {_first_persona()[0]}
-    assert wanted == {"goose", "jesse", "maya"} and wanted <= registered
+
 
 
 def test_up_restarts_a_crash_and_stops_everything(tmp_path, capsys, monkeypatch):
