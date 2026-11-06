@@ -1,0 +1,11 @@
+[
+ {"id": "m1", "from": "Sam Okafor", "to": "Pranav", "date": "2026-11-05T18:12:00-05:00", "subject": "Dinner Saturday?", "body": "Are we still on for dinner Saturday? Thinking Neptune Oyster around 7. Lena is in.", "tier": "friends"},
+ {"id": "m2", "from": "Lena Fischer", "to": "Pranav", "date": "2026-11-05T20:41:00-05:00", "subject": "Saturday and the gift", "body": "I can make Saturday but only after 7. Did you pick up the gift for Rohan's birthday?", "tier": "private"},
+ {"id": "m3", "from": "Rohan Mishra", "to": "Pranav", "date": "2026-11-04T09:03:00-05:00", "subject": "Mum's flight", "body": "Mum lands at Logan on Thursday at 4:40. Can you pick her up? I am stuck until 6.", "tier": "family"},
+ {"id": "m4", "from": "Muhammad Rahman", "to": "Pranav", "date": "2026-11-05T11:27:00-05:00", "subject": "Climbing Sunday", "body": "Gym at 10 on Sunday? I still have your harness, I will bring it.", "tier": "friends"},
+ {"id": "m5", "from": "Dr. Whitfield's office", "to": "Pranav", "date": "2026-11-03T15:30:00-05:00", "subject": "Lab results", "body": "Your cholesterol results are in. Please call to book a follow-up.", "tier": "private"},
+ {"id": "m6", "from": "Beacon Bank", "to": "Pranav", "date": "2026-11-02T08:00:00-05:00", "subject": "Statement ready", "body": "Your October statement is ready. Balance 18,240 dollars.", "tier": "private"},
+ {"id": "m7", "from": "Boston Tech Meetup", "to": "Pranav", "date": "2026-11-01T12:00:00-05:00", "subject": "Speaker confirmed", "body": "Pranav is confirmed to speak on voice agents, Tuesday 10 November at 6pm, Cambridge Innovation Center.", "tier": "public"},
+ {"id": "m8", "from": "Priya Nair", "to": "Pranav", "date": "2026-11-05T16:05:00-05:00", "subject": "Contract redlines", "body": "Legal needs your sign-off on the Northwind contract by Monday noon.", "tier": "private"},
+ {"id": "m9", "from": "Lena Fischer", "to": "Pranav", "date": "2026-11-05T21:02:00-05:00", "subject": "Saturday timing", "body": "Could we make it 7:30 on Saturday? Work is running late.", "tier": "friends"}
+]

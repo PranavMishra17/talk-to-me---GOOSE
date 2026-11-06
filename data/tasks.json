@@ -1,0 +1,8 @@
+[
+ {"id": "t1", "text": "Confirm the new dinner time with Sam and Lena", "due": "2026-11-07", "people": ["Sam Okafor", "Lena Fischer"], "done": false, "tier": "friends"},
+ {"id": "t2", "text": "Collect Rohan's birthday gift", "due": "2026-11-07", "people": ["Lena Fischer"], "done": false, "tier": "private"},
+ {"id": "t3", "text": "Pick up Mum at Logan, Thursday 4:40", "due": "2026-11-12", "people": ["Rohan Mishra"], "done": false, "tier": "family"},
+ {"id": "t4", "text": "Sign off the Northwind contract", "due": "2026-11-09", "people": ["Priya Nair"], "done": false, "tier": "private"},
+ {"id": "t5", "text": "Send the slides to Boston Tech Meetup", "due": "2026-11-09", "people": [], "done": false, "tier": "public"},
+ {"id": "t6", "text": "Get the harness back from Muhammad", "due": "2026-11-08", "people": ["Muhammad Rahman"], "done": false, "tier": "friends"}
+]

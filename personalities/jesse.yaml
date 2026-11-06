@@ -14,7 +14,13 @@ tool_filler:
 farewell:
   - "Later!"
   - "Catch you later."
+<<<<<<< HEAD
 fish_voice: bf322df2096a46f18c579d0baa36f41d  # Adrian, LiveKit Fish docs
+=======
+greeting:
+  known: "Hey {name}, {assistant} here. What do you need?"
+  unknown: "Hey, {assistant} here, {owner}'s assistant. Who's this?"
+>>>>>>> 3c39a4b (Vault, contacts, call records, owner agent and Goose pack as new modules)
 confirm:
   take_message: "Want me to tell {owner}?"
   propose_slot: "That time work?"

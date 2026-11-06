@@ -14,7 +14,13 @@ tool_filler:
 farewell:
   - "Okay, bye for now."
   - "Take care, bye."
+<<<<<<< HEAD
 fish_voice: fa4c9eb3dccc4806b382b40d61c6b10a  # starter default
+=======
+greeting:
+  known: "Hi {name}, this is {assistant}. What can I do for you?"
+  unknown: "Hi, this is {assistant}, {owner}'s assistant. Who's calling?"
+>>>>>>> 3c39a4b (Vault, contacts, call records, owner agent and Goose pack as new modules)
 confirm:
   take_message: "Want me to pass that on to {owner}?"
   propose_slot: "Shall I go with that time?"

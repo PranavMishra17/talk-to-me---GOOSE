@@ -1,0 +1,9 @@
+{"id": "seed-0004", "started_at": "2026-11-06T14:31:18-05:00", "ended_at": "2026-11-06T14:31:43-05:00", "kind": "phone", "number": "+15550100333",
+ "contact": {"name": "Rohan Mishra", "relationship": "brother", "tier": "family"}, "persona": "goose", "pack": "goose",
+ "summary": "Rohan needs to know if you can get Mum from Logan on Thursday.", "outcome": "needs_you", "actions": [{"text": "Tell Rohan if you can do the Logan pickup Thursday at 4:40", "done": false}],
+ "transcript": [
+  {"who": "goose", "text": "Hi Rohan, Goose here. What can I do for you?", "ts": "2026-11-06T14:31:20-05:00"},
+  {"who": "caller", "text": "Can Pranav get Mum from Logan on Thursday? I'm stuck until 6.", "ts": "2026-11-06T14:31:29-05:00"},
+  {"who": "goose", "text": "It's on his calendar but not confirmed. Want me to ask him?", "ts": "2026-11-06T14:31:35-05:00"},
+  {"who": "caller", "text": "Yes, thanks.", "ts": "2026-11-06T14:31:38-05:00"},
+  {"who": "goose", "text": "Done. I'll get him to tell you today.", "ts": "2026-11-06T14:31:41-05:00"}]}

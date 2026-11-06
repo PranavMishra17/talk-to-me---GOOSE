@@ -1,0 +1,9 @@
+{"id": "seed-0002", "started_at": "2026-11-06T12:15:02-05:00", "ended_at": "2026-11-06T12:15:25-05:00", "kind": "phone", "number": "+15550100444",
+ "contact": {"name": "Lena Fischer", "relationship": "friend", "tier": "friends"}, "persona": "goose", "pack": "goose",
+ "summary": "Lena wants dinner Saturday moved to 7:30.", "outcome": "needs_you", "actions": [{"text": "Tell Sam whether 7:30 works for dinner", "done": false}],
+ "transcript": [
+  {"who": "goose", "text": "Hi Lena, Goose here. What can I do for you?", "ts": "2026-11-06T12:15:04-05:00"},
+  {"who": "caller", "text": "I can't make 7 on Saturday. Can we push dinner to 7:30?", "ts": "2026-11-06T12:15:12-05:00"},
+  {"who": "goose", "text": "Want me to pass that on to Pranav?", "ts": "2026-11-06T12:15:17-05:00"},
+  {"who": "caller", "text": "Yes please.", "ts": "2026-11-06T12:15:20-05:00"},
+  {"who": "goose", "text": "Done. He'll have it today.", "ts": "2026-11-06T12:15:23-05:00"}]}

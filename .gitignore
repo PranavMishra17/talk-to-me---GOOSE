@@ -12,3 +12,4 @@ SETUP.html
 .harness-lock/
 goose_tasks.jsonl
 data/contacts.local.json
+runtime/
