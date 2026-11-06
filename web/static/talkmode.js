@@ -8,20 +8,20 @@ const CSS = `
   .gi-modes{display:flex;flex-wrap:wrap;gap:8px;border:0;margin:0;padding:0}
   .gi-modes legend{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
   .gi-modes input{position:absolute;opacity:0}
-  .gi-modes span{display:block;padding:6px 16px;border:3px solid #1A1423;background:#FFF8E7;font-weight:700;font-size:clamp(17px,2vw,22px);cursor:pointer}
+  .gi-modes span{display:block;padding:4px 12px;border:2px solid #1A1423;background:#FFF8E7;font-weight:700;font-size:16px;cursor:pointer}
   .gi-modes input:checked+span{background:#4CC9F0}
   .gi-modes input:focus-visible+span{outline:3px solid #4CC9F0;outline-offset:3px}
-  .gi-hold{width:100%;padding:18px 20px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer;background:#E63946;color:#fff;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;font:400 clamp(30px,4.6vw,52px)/1 Bangers,Impact,sans-serif;letter-spacing:.03em;transition:transform .12s ease-out,box-shadow .12s ease-out}
+  .gi-hold{width:100%;padding:10px 16px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer;background:#E63946;color:#fff;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;font:400 26px/1.1 Bangers,Impact,sans-serif;letter-spacing:.03em;transition:transform .12s ease-out,box-shadow .12s ease-out}
   .gi-hold.on{background:#4CC9F0;color:#1A1423;transform:translate(5px,5px);box-shadow:0 0 0 #1A1423}
   .gi-hold:focus-visible{outline:3px solid #4CC9F0;outline-offset:3px}
   .gi-hold[disabled]{opacity:.6;cursor:default}
   .gi-type{display:flex;gap:10px}
-  .gi-type input{flex:1;min-width:0;padding:12px 14px;border:3px solid #1A1423;background:#FFF8E7;color:#1A1423;font:inherit;font-size:clamp(20px,2.6vw,30px)}
+  .gi-type input{flex:1;min-width:0;padding:8px 12px;border:3px solid #1A1423;background:#FFF8E7;color:#1A1423;font:inherit;font-size:18px}
   .gi-type input:focus-visible{outline:3px solid #4CC9F0;outline-offset:2px}
-  .gi-type button{padding:0 22px;cursor:pointer;background:#E63946;color:#fff;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;font:400 clamp(24px,3vw,34px) Bangers,Impact,sans-serif;letter-spacing:.03em}
-  .gi-open,.gi-note{margin:0;padding:12px 16px;border:3px solid #1A1423;background:#FFD23F;font-weight:700;font-size:clamp(20px,2.6vw,30px)}
+  .gi-type button{padding:0 22px;cursor:pointer;background:#E63946;color:#fff;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;font:400 22px Bangers,Impact,sans-serif;letter-spacing:.03em}
+  .gi-open,.gi-note{margin:0;padding:8px 14px;border:3px solid #1A1423;background:#FFD23F;font-weight:700;font-size:18px}
   .gi-note{background:#FFF8E7}
-  .gi-tap{position:fixed;left:16px;right:16px;bottom:16px;z-index:9;padding:22px;cursor:pointer;background:#FFD23F;color:#1A1423;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;font:400 clamp(36px,6vw,64px)/1 Bangers,Impact,sans-serif;letter-spacing:.03em}
+  .gi-tap{position:fixed;left:16px;right:16px;bottom:16px;z-index:9;padding:14px;cursor:pointer;background:#FFD23F;color:#1A1423;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;font:400 32px/1 Bangers,Impact,sans-serif;letter-spacing:.03em}
   .gi-tap:focus-visible{outline:3px solid #4CC9F0;outline-offset:3px}
   [hidden]{display:none!important}
   @media (prefers-reduced-motion: reduce){.gi-hold{transition:none}}
@@ -39,7 +39,7 @@ export function inputBar(host, onLine) {
       `<label><input type="radio" name="gi-mode" value="${id}"><span>${label}</span></label>`).join('')}</fieldset>
     <p class="gi-note" hidden></p>
     <button type="button" class="gi-hold" disabled>Hold to talk (or hold Space)</button>
-    <form class="gi-type"><input aria-label="Type what you want to say" placeholder="Type to Goose" autocomplete="off" disabled><button disabled>Send</button></form>
+    <form class="gi-type"><input aria-label="Type what you want to say" placeholder="Type what you want to say" autocomplete="off" disabled><button disabled>Send</button></form>
     <p class="gi-open">Mic is open.</p>
   </div>`;
   const $ = s => host.querySelector(s);
@@ -114,8 +114,8 @@ export function inputBar(host, onLine) {
 }
 
 // A page that joined without a click on it can have its audio blocked by the browser: one big button unblocks it.
-export function audioGate(lk, RoomEvent) {
-  const tap = Object.assign(document.createElement('button'), {className: 'gi-tap', textContent: 'Tap to hear Goose', hidden: true});
+export function audioGate(lk, RoomEvent, assistant) {
+  const tap = Object.assign(document.createElement('button'), {className: 'gi-tap', textContent: `Tap to hear ${assistant}`, hidden: true});
   document.body.append(tap);
   const sync = () => { tap.hidden = lk.canPlaybackAudio; };
   tap.onclick = () => lk.startAudio().then(sync, sync);

@@ -94,13 +94,14 @@ def _first_persona() -> tuple[str, str, str]:
 
 @app.get("/api/me")
 async def me():
-    return {"owner": _first_persona()[1].title(), "dial_in": _phone(),
+    return {"owner": _first_persona()[1].title(), "assistant": _first_persona()[0].title(), "dial_in": _phone(),
             "personalities": list_packs()}
 
 
 @app.get("/config")
 async def config():
-    owners = [{"id": p["owner"], "name": p["owner"].title(), "pack": p["pack"]} for p in load_config()["personas"].values()]
+    owners = [{"id": p["owner"], "name": p["owner"].title(), "pack": p["pack"], "assistant": name}
+              for name, p in load_config()["personas"].items()]
     return {"phone": _phone(), "owners": owners}
 
 
