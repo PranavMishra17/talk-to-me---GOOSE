@@ -1,9 +1,9 @@
-# Difficult-caller simulations for Ash, Pranav's assistant. Same kinds of caller as the starter's file, rewritten for this job.
+# Difficult-caller simulations for Goose, the assistant that answers for Pranav. Same kinds of caller as the starter's file, rewritten for this job.
 # Run through the wrapper that loads .env, holding .harness-lock:
 #   uv run python <lkenv.py> agent simulate text --scenarios scenarios.yaml --agent-name ash
 # Each run spends inference credits: run one scenario while iterating, the full file before a milestone.
 id: SCNG_tJzJ7gUV376r
-name: Ash - difficult callers
+name: Goose - difficult callers
 scenarios:
   - id: SCN_6XCE8nev6uAX
     label: Happy path leaves a message
