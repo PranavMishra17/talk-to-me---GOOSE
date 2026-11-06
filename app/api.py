@@ -274,11 +274,6 @@ async def room_token(name: str, body: Join = Join()):
     return {"url": os.environ["LIVEKIT_URL"], "token": jwt}
 
 
-@app.get("/demo")
-async def demo():
-    return FileResponse(STATIC / "demo.html")
-
-
 @app.get("/app")
 async def pranav_app():
     return FileResponse(STATIC / "app.html")

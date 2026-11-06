@@ -323,7 +323,7 @@ fetch(`/api/callers?owner=${encodeURIComponent(owner)}`).then(r => r.json()).the
   owners = new Set(list.filter(c => c.owner).map(c => c.name));
   $('as').append(...list.map(c => new Option(c.owner ? `${c.name} (owner)` : c.name, c.name)));
 }).catch(() => {}).finally(() => {
-  const q = new URLSearchParams(location.search);   // the /demo buttons arrive with who to join as
+  const q = new URLSearchParams(location.search);
   if (q.get('as')) $('as').value = q.get('as');
   if (q.has('join')) join();
 });
