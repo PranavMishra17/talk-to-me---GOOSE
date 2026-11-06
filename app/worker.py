@@ -16,6 +16,7 @@ from livekit import rtc
 from livekit.agents import AgentServer, JobContext, cli, room_io
 
 from app import native
+from app import recap
 from app.agent import GooseAgent
 from app.owner import OwnerAgent
 from app.providers import build_session
@@ -64,12 +65,28 @@ def _save(ctx, session, agent):
     saved = []
     def write(*_):
         if not saved:
-            saved.append(calls.write_call(agent.call_record(f"console-{os.urandom(3).hex()}" if ctx.is_fake_job() else ctx.job.id, turns())))
-            logger.info("CALL RECORD %s", saved[0])
+            saved.append(agent.call_record(f"console-{os.urandom(3).hex()}" if ctx.is_fake_job() else ctx.job.id, turns()))
+            logger.info("CALL RECORD %s", calls.write_call(saved[0]))
     async def at_shutdown():
         write()
+        await _recap(session, agent, saved[0])
     session.on("close", write)
     ctx.add_shutdown_callback(at_shutdown)
+
+
+async def _recap(session, agent, record):
+    """The record is already safe on disk. Better words replace the plain line if they come in time; a test run spends nothing."""
+    heard = any(t["who"] == "caller" for t in record["transcript"])
+    if record["kind"] != "phone" or not heard or record["summary"].startswith("Ended by ") or os.environ.get("GOOSE_AGENT_TAG"):
+        return
+    who = (record["contact"] or {}).get("name", "someone").split()[0]
+    try:
+        line = await asyncio.wait_for(recap.summarise(session.llm, who, agent.owner.title(), record["transcript"]), 4)
+    except Exception as e:
+        logger.warning("call recap skipped: %r", e)
+        return
+    if line:
+        calls.write_call({**record, "summary": line})
 
 
 def _hold_to_talk(ctx, session, agent):

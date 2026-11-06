@@ -77,9 +77,9 @@ def test_prefetch_is_tier_filtered_and_relevant():
     assert "7:30" in lena and "gift" not in lena     # her friends-tier mail, not the private one
     sam = bundle("+15550100222")
     assert "Neptune" in sam and "Northwind" not in sam and "Cardiology" not in sam and "busy" in sam
-    priya = bundle("+15550100666")
-    assert "liability cap" in priya and "Neptune" not in priya and "Dinner" not in priya  # work, not the owner's evenings
-    assert "15 percent" not in priya and "12 percent" not in priya   # private stays private, work or not
+    connor = bundle("+15550100666")
+    assert "liability cap" in connor and "Neptune" not in connor and "Dinner" not in connor  # work, not the owner's evenings
+    assert "15 percent" not in connor and "12 percent" not in connor   # private stays private, work or not
     assert "18,240" not in vault.prefetch("pranav", {"name": "Beacon Bank", "relationship": "owner", "tier": "private"}, [], TODAY)
 
 

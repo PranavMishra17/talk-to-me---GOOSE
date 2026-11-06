@@ -9,13 +9,21 @@ from livekit.agents import APIConnectOptions, AgentSession, TurnHandlingOptions,
 from livekit.plugins import cartesia, openai
 from livekit.agents.voice.agent_session import SessionConnectOptions
 
+from proxy_core import vault
 from proxy_core.config import load_config, load_env
 from proxy_core.session_config import turn_kwargs
 
 NOT_SET = object()
+PLACES = {"Bungalow", "Goose", "Neptune Oyster", "Northwind", "Logan", "Central Rock Gym", "The Bristol"}
 # The SDK default gives up after about 4 s, and a 429 from Inference then closes the session before any audio.
 # A late greeting beats a dead call: this rides out about 20 s. A healthy call never reaches it.
 _RETRY = APIConnectOptions(max_retry=10, retry_interval=2.0)
+
+
+def _keyterms():
+    """Names a call depends on. Deepgram takes up to 100 terms; Nova-3 heard Bungalow as Bangalore without this."""
+    names = {w for c in vault.contacts() for w in c["name"].split()}
+    return sorted(PLACES | names)[:100]
 
 
 def _stt(c, cfg):
@@ -25,8 +33,10 @@ def _stt(c, cfg):
         return cartesia.STT(model=c["model"], language=c.get("language", "en"))
     # deepgram_flux is the same Inference class with the flux model id.
     model = "deepgram/flux-general-en" if c["kind"] == "deepgram_flux" else c["model"]
-    kw = {"extra_kwargs": c["flux"]} if "flux" in model and c.get("flux") else {}
-    return inference.STT(model=model, language=c.get("language", "en"), **kw)
+    extra = dict(c["flux"]) if "flux" in model and c.get("flux") else {}
+    if model.startswith("deepgram/") and os.environ.get("GOOSE_KEYTERMS") != "0":   # the off switch: not yet tried on a live call
+        extra["keyterm"] = _keyterms()
+    return inference.STT(model=model, language=c.get("language", "en"), **({"extra_kwargs": extra} if extra else {}))
 
 
 def _llm(c, cfg):

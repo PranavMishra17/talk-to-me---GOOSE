@@ -72,7 +72,7 @@ def outcome(who: str, log: list[str], slots: dict, turns: list[dict]) -> tuple[s
     actions = []
     for entry in log:
         if entry.startswith("message from "):
-            actions.append(f"Reply to {first}: {entry.split(': ', 1)[1]}")
+            actions.append(f"Reply to {first}")
         elif entry.startswith("slot "):
             actions.append(f"Confirm {entry[5:]} with {first}")
         elif entry.startswith("permission? "):
@@ -82,13 +82,23 @@ def outcome(who: str, log: list[str], slots: dict, turns: list[dict]) -> tuple[s
     if ended.startswith("Ended by "):            # the agent hung up on them: that is the headline in the call history
         summary = f"{ended}."
     elif said:
-        summary = f"{first} left a message: {said.rstrip(' .?!')}."
+        summary = f"{first} left you a message."  # never the words themselves: this gets spoken; app/recap.py improves it
     elif ended and ended not in _CODE_ENDS:      # end_call's summary, from the model that heard the whole call
         summary = ended
     else:
-        summary = f"{first} said: {max(heard, key=len)}" if heard else f"{first} hung up without a word."
+        summary = f"{first} called." if heard else f"{first} hung up without a word."
     status = "needs_you" if actions else "info" if not heard or not ended or ended in _BAD_ENDS or ended.startswith("Ended by ") else "resolved"
     return summary, status, [{"text": a, "done": False} for a in actions]
+
+
+def human_summary(text: str, heard: list[str]) -> str | None:
+    """A model's line, kept only if it is one short line of its own: six words in a row from the caller is reading out."""
+    text = " ".join(text.split()).strip('"')
+    said = " ".join(heard).lower()
+    words = text.lower().split()
+    if not text or len(text) > 200 or any(" ".join(words[i:i + 6]) in said for i in range(len(words) - 5)):
+        return None
+    return text
 
 
 def to_owner(text: str, owner: str) -> str:
@@ -120,8 +130,10 @@ if __name__ == "__main__":
     log = ["message from Sam: dinner works", "end: caller confirmed"]
     s, o, a = outcome("Sam Okafor", log, {"details": "dinner works"}, [{"who": "caller", "text": "hi"}])
     assert outcome("Sam", ["end: Sam confirmed dinner."], {"topic": "dinner?"}, [{"who": "caller", "text": "x"}])[:2] == ("Sam confirmed dinner.", "resolved")
-    assert (o, a[0]["text"]) == ("needs_you", "Reply to Sam: dinner works") and s == "Sam left a message: dinner works."
-    assert outcome("Unknown caller", [], {}, [])[:2] == ("Unknown hung up without a word.", "info")
+    assert (o, a[0]["text"]) == ("needs_you", "Reply to Sam") and s == "Sam left you a message."
+    assert outcome("Someone", [], {}, [])[:2] == ("Someone hung up without a word.", "info")
+    assert human_summary("Sam wants dinner moved.", ["could we move dinner"]) == "Sam wants dinner moved."
+    assert human_summary("I wanted to get a PR done today", ["hey I wanted to get a PR done today please"]) is None
     assert outcome("Sam", ["end: caller said goodbye"], {}, [{"who": "caller", "text": "bye"}])[1] == "resolved"
     assert outcome("Sam", ["end: hostile caller"], {}, [{"who": "caller", "text": "x"}])[1] == "info"
     assert brief([], "Pranav") == "No calls yet."

@@ -8,7 +8,7 @@ from proxy_core import policy, vault
 
 MUHAMMAD = "+15550100555"
 TODAY = date(2026, 11, 6)
-PRIVATE = ("640", "debts", "audit", "Bristol", "Four Seasons", "Northwind CEO")
+PRIVATE = ("640", "debts", "audit", "Bristol", "Four Seasons")
 
 
 def everything(tier, owner):

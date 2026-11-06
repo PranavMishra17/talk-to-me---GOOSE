@@ -678,7 +678,8 @@ class GooseAgent(DataTools, Agent):
     def call_record(self, call_id, turns):
         """The record for GOOSE_DATA_DIR/calls. A request still waiting on a yes when the line dropped still counts."""
         log = self.log + [f"message from {a['from_name']}: {a['message']}" for t, a in self.agenda.pending.items() if t == "take_message"]
-        who = self.contact["name"] if self.contact else self.agenda.slots.get("name") or "Unknown caller"
+        said = (slots.extract(t["text"]).get("name") for t in turns if t["who"] == "caller")   # their words, not a model's guess
+        who = self.contact["name"] if self.contact else next(filter(None, said), "Someone")
         summary, outcome, actions = calls.outcome(who, log, self.agenda.slots, turns)
         c = self.contact
         return {"id": call_id, "started_at": self.started_at, "ended_at": _now(), "kind": "phone", "number": self.caller,

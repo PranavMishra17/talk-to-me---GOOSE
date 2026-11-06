@@ -6,6 +6,7 @@ import pytest
 from livekit.agents import AgentSession
 from test_gate_flow import Script
 
+from app import providers, recap, worker
 from app.agent import GooseAgent
 from app.owner import OwnerAgent
 from proxy_core import vault
@@ -56,6 +57,31 @@ def test_the_hello_has_no_calls_and_the_update_waits_for_an_answer():
     assert "word for word" not in seen[2]
     hello = owner_hello(load_pack("goose"), "Goose", "Pranav")
     assert hello == "Hey Pranav, Goose here, how's it going?" and "call" not in hello
+
+
+def test_a_call_gets_a_line_a_person_would_say():
+    turns = [{"who": "goose", "text": "Who is it?"}, {"who": "caller", "text": "Hey, I wanted to get a PR done and I want it before the weekend."}]
+    line = "Muhammad's after you on the PR, he wants it before the weekend."
+    assert asyncio.run(recap.summarise(Script([line]), "Muhammad", "Pranav", turns)) == line
+    assert asyncio.run(recap.summarise(Script(["He said I wanted to get a PR done and I want it."]), "Muhammad", "Pranav", turns)) is None
+
+
+def test_join_as_reaches_the_contact_and_the_record():
+    class Joiner:
+        attributes = {"goose.caller": "Muhammad Rahman"}
+
+    agent = GooseAgent("goose", caller=worker._number(Joiner, "pranav"), cfg=load_config())
+    record = agent.call_record("x", [{"who": "caller", "text": "Hi", "ts": ""}])
+    assert record["contact"]["name"] == "Muhammad Rahman" and not record["summary"].startswith("Someone")
+    stranger = GooseAgent("goose", cfg=load_config()).call_record("y", [{"who": "caller", "text": "Yeah hello", "ts": ""}])
+    assert stranger["contact"] is None and stranger["summary"] == "Someone called."
+    named = GooseAgent("goose", cfg=load_config()).call_record("z", [{"who": "caller", "text": "Hi, it's Dave.", "ts": ""}])
+    assert named["summary"] == "Dave called."
+
+
+def test_keyterms_carry_the_names_stt_mangles():
+    terms = providers._keyterms()
+    assert "Bungalow" in terms and "Muhammad" in terms and "Connor" in terms and len(terms) <= 100
 
 
 def test_stage_flow_adds_dinner_then_a_short_follow_up_moves_it():

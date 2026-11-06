@@ -3,5 +3,5 @@
  {"name": "Rohan Mishra", "relationship": "brother", "tier": "family", "numbers": ["+15550100333"], "notes": "Has his own assistant, Maya."},
  {"name": "Lena Fischer", "relationship": "friend", "tier": "friends", "numbers": ["+15550100444"], "notes": "Often runs late."},
  {"name": "Muhammad Rahman", "relationship": "colleague", "tier": "friends", "numbers": ["+15550100555"], "notes": "Engineer at Honk Labs, owns the voice feature on web.", "topics": ["work"]},
- {"name": "Priya Nair", "relationship": "colleague", "tier": "friends", "numbers": ["+15550100666"], "notes": "Runs the Northwind deal with Pranav.", "topics": ["work"]}
+ {"name": "Connor Reed", "relationship": "colleague", "tier": "friends", "numbers": ["+15550100666"], "notes": "Runs the Northwind deal with Pranav.", "topics": ["work"]}
 ]
