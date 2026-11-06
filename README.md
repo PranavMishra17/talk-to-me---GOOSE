@@ -26,10 +26,10 @@ Open http://localhost:8000 and press New call. Change only `web/`. The API is fi
 
 | Call | Returns |
 |---|---|
-| `GET /api/rooms` | `{dial_in, rooms: [{room, people}]}`, newest first; the page follows the newest call |
-| `GET /api/tasks` | finished calls, newest first; shape of `web/mock-tasks.jsonl` |
-| `POST /api/rooms` | `{room}` |
-| `GET /api/rooms/{room}` | the shape of `web/mock-state.json`; poll every second |
-| `POST /api/rooms/{room}/token` with `{identity}` | `{url, token}` for LiveKit JS |
+| `GET /api/me` | `{owner, dial_in, personalities}` |
+| `GET /api/calls`, `GET /api/calls/{id}` | call history newest first, one full record; shape of `web/mock-calls.json` |
+| `POST /api/talk` | `{room, url, token}`: a private room with the first persona in `config.yaml`, metadata `{"mode": "owner"}` |
+| `GET /api/rooms` | `{dial_in, rooms: [{room, people}]}`, newest first; phone rooms start with `call-` |
+| `GET /api/rooms/{room}` | the shape of `web/mock-state.json` |
 
 Need a new field? Add it to `web/mock-state.json` and tell Pranav, so the worker publishes it.

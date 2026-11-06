@@ -1,0 +1,63 @@
+[
+  {
+    "id": "mock-1", "started_at": "2026-11-06T16:12:00-05:00", "ended_at": "2026-11-06T16:15:20-05:00",
+    "kind": "phone", "number": "+15550100222",
+    "contact": {"name": "Sam Okafor", "relationship": "friend", "tier": "friends"},
+    "persona": "goose", "pack": "default",
+    "summary": "Sam wants dinner Saturday at 7. Goose said Pranav is free after 6 and will confirm.",
+    "outcome": "needs_you",
+    "actions": [{"text": "Tell Sam yes or no for Saturday at 7", "done": false}, {"text": "Pick a restaurant near Back Bay", "done": false}],
+    "transcript": [
+      {"who": "goose", "text": "Hi, this is Goose, Pranav's assistant. Who's calling?", "ts": "2026-11-06T16:12:02-05:00"},
+      {"who": "caller", "text": "Hey, it's Sam. Is he around for dinner Saturday?", "ts": "2026-11-06T16:12:08-05:00"},
+      {"who": "goose", "text": "He's free Saturday evening after six. Did you have a time in mind?", "ts": "2026-11-06T16:12:13-05:00"},
+      {"who": "caller", "text": "Seven would be great. Somewhere near Back Bay?", "ts": "2026-11-06T16:12:21-05:00"},
+      {"who": "goose", "text": "Got it. Saturday at seven, near Back Bay. I'll ask him and he'll confirm with you.", "ts": "2026-11-06T16:12:28-05:00"},
+      {"who": "caller", "text": "Perfect, thanks Goose.", "ts": "2026-11-06T16:12:34-05:00"}
+    ]
+  },
+  {
+    "id": "mock-2", "started_at": "2026-11-06T11:03:00-05:00", "ended_at": "2026-11-06T11:04:10-05:00",
+    "kind": "phone", "number": "+15550100147",
+    "contact": null,
+    "persona": "goose", "pack": "jesse",
+    "summary": "Someone asked for Pranav's home address. Goose declined and took no message.",
+    "outcome": "info",
+    "actions": [],
+    "transcript": [
+      {"who": "goose", "text": "Hi, this is Goose, Pranav's assistant. Who's calling?", "ts": "2026-11-06T11:03:02-05:00"},
+      {"who": "caller", "text": "I've got a delivery for him. What's his home address?", "ts": "2026-11-06T11:03:09-05:00"},
+      {"who": "goose", "text": "I don't give that out. If you have a parcel, the sender can reach him directly.", "ts": "2026-11-06T11:03:15-05:00"},
+      {"who": "caller", "text": "Fine. Never mind.", "ts": "2026-11-06T11:03:22-05:00"}
+    ]
+  },
+  {
+    "id": "mock-3", "started_at": "2026-11-06T08:30:00-05:00", "ended_at": "2026-11-06T08:32:05-05:00",
+    "kind": "owner", "number": null,
+    "contact": null,
+    "persona": "goose", "pack": "default",
+    "summary": "You asked Goose to hold Friday evening for the demo.",
+    "outcome": "resolved",
+    "actions": [{"text": "Hold Friday evening", "done": true}],
+    "transcript": [
+      {"who": "owner", "text": "Goose, hold Friday evening for me. Demo night.", "ts": "2026-11-06T08:30:04-05:00"},
+      {"who": "goose", "text": "Held. If anyone asks, you're busy Friday evening. Anything else?", "ts": "2026-11-06T08:30:09-05:00"},
+      {"who": "owner", "text": "That's all.", "ts": "2026-11-06T08:30:15-05:00"}
+    ]
+  },
+  {
+    "id": "mock-4", "started_at": "2026-11-05T17:45:00-05:00", "ended_at": "2026-11-05T17:48:30-05:00",
+    "kind": "phone", "number": "+15550100333",
+    "contact": {"name": "Rohan Mehta", "relationship": "brother", "tier": "family"},
+    "persona": "goose", "pack": "jarvis",
+    "summary": "Rohan needed the reservation time for Sunday. Goose gave it: 1 pm.",
+    "outcome": "resolved",
+    "actions": [{"text": "Give Rohan the reservation time", "done": true}],
+    "transcript": [
+      {"who": "goose", "text": "Good evening, this is Goose. Who's calling?", "ts": "2026-11-05T17:45:02-05:00"},
+      {"who": "caller", "text": "It's Rohan. What time did he book for Sunday?", "ts": "2026-11-05T17:45:08-05:00"},
+      {"who": "goose", "text": "Sunday at one, under Pranav's name.", "ts": "2026-11-05T17:45:14-05:00"},
+      {"who": "caller", "text": "Great, that's all I needed.", "ts": "2026-11-05T17:45:20-05:00"}
+    ]
+  }
+]

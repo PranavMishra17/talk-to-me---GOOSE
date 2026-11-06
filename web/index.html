@@ -4,94 +4,308 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Goose</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-  body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:0 auto;padding:16px;background:#fff;color:#1b1b1b}
-  header{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  h1{font-size:20px;margin:0 auto 0 0}
-  main{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:12px}
-  section{border:1px solid #ddd;border-radius:8px;padding:12px}
-  h2{font-size:14px;margin:0 0 6px}
-  ul{margin:0;padding-left:18px}
-  .done{color:#777;text-decoration:line-through}
-  input,button{font:inherit;padding:6px 10px}
+  :root{
+    --yolk:#FFC73A; --shell:#FFF7E3; --plum:#3B1534; --plum-soft:#74506C; --tomato:#C22F1B; --leaf:#1C6B4C;
+    --display:Caprasimo,Georgia,serif; --body:Figtree,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--yolk);color:var(--plum);font:17px/1.5 var(--body)}
+  a{color:inherit}
+  :focus-visible{outline:3px solid var(--plum);outline-offset:3px}
+  h1,h2,p,ul{margin:0}
+  ul{list-style:none;padding:0}
+
+  /* Home: the egg on the yolk, the call history on a sheet of shell */
+  #home{min-height:100%;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr)}
+  .perch{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:40px 24px;text-align:center}
+  .perch h1{font:400 clamp(38px,4.6vw,60px)/1.08 var(--display);max-width:11em;text-wrap:balance}
+  .egg{appearance:none;border:0;cursor:pointer;width:min(68vw,290px);aspect-ratio:4/5;padding:0 26px;color:var(--plum);
+    background:radial-gradient(circle at 36% 28%,#fff 0 22%,var(--shell) 62%,#f6e4bd);
+    border-radius:50% 50% 50% 50%/62% 62% 40% 40%;box-shadow:0 12px 0 var(--plum);
+    font:400 38px/1.05 var(--display);transition:transform .1s,box-shadow .1s}
+  .egg:hover{transform:translateY(-3px);box-shadow:0 15px 0 var(--plum)}
+  .egg:active{transform:translateY(9px);box-shadow:0 3px 0 var(--plum)}
+  .egg:focus-visible{outline-offset:8px}
+  .dial{font-size:17px}
+  .dial a{font-weight:700;white-space:nowrap}
+  .live{display:inline-block;background:var(--plum);color:var(--shell);padding:6px 14px;border-radius:99px;font-size:15px;font-weight:500;text-decoration:none}
+  .live::before{content:"";display:inline-block;width:9px;height:9px;margin-right:8px;border-radius:50%;background:var(--yolk);animation:blink 1.4s infinite}
+  @keyframes blink{50%{opacity:.25}}
+
+  .sheet{background:var(--shell);padding:48px clamp(20px,5vw,64px);border-radius:36px 0 0 36px;min-width:0}
+  .sheet h2{font:400 28px/1.2 var(--display);margin-bottom:12px}
+  .call{display:block;padding:16px 0;border-top:2px solid #f0dfb8;text-decoration:none}
+  .call:hover .who{text-decoration:underline}
+  .top{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+  .who{font-weight:700;font-size:19px;overflow-wrap:anywhere}
+  .when{color:var(--plum-soft);font-size:15px;margin-right:auto}
+  .sum{max-width:62ch}
+  .badge{font-size:14px;font-weight:700;padding:2px 11px;border-radius:99px;white-space:nowrap;background:#f3e2bc}
+  .badge.needs_you{background:var(--tomato);color:#fff}
+  .badge.resolved{background:#cfeeda;color:var(--leaf)}
+  .quiet{color:var(--plum-soft);padding:16px 0}
+
+  /* Call detail */
+  #detail{min-height:100%;background:var(--shell);padding:28px 20px 64px}
+  .col{max-width:680px;margin:0 auto}
+  .back{display:inline-block;margin-bottom:24px;font-weight:700}
+  #detail h1{font:400 clamp(34px,6vw,46px)/1.1 var(--display);overflow-wrap:anywhere}
+  .meta{color:var(--plum-soft);margin:6px 0 14px}
+  .meta::first-letter{text-transform:uppercase}
+  #detail h2{font:400 23px/1.2 var(--display);margin:32px 0 10px}
+  .acts li{padding:4px 0 4px 30px;position:relative}
+  .acts li::before{content:"";position:absolute;left:0;top:8px;width:18px;height:18px;border:2px solid var(--plum);border-radius:50%}
+  .acts li.done::before{background:var(--leaf);border-color:var(--leaf)}
+  .acts li.done{color:var(--plum-soft)}
+  .chat{display:flex;flex-direction:column;gap:10px}
+  .say{max-width:82%;padding:9px 15px;border-radius:18px;background:#f6e6c2;align-self:flex-start;border-bottom-left-radius:4px;overflow-wrap:anywhere}
+  .say.goose{background:var(--yolk);align-self:flex-end;border-radius:18px;border-bottom-right-radius:4px}
+  .say b{display:block;font-size:14px}
+  .panel{border:2px solid #f0dfb8;border-radius:16px;padding:12px 16px;margin-top:12px}
+  .panel .done{text-decoration:line-through;color:var(--plum-soft)}
+
+  /* Talk: the lights go down, the egg shows who has the floor */
+  #talk{height:100%;display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px 16px;background:var(--plum);color:var(--shell)}
+  #talk :focus-visible{outline-color:var(--yolk)}
+  .orb{flex:none;width:min(34vh,190px);aspect-ratio:4/5;margin-top:16px;background:radial-gradient(circle at 36% 28%,#fff 0 22%,var(--shell) 62%,#f6e4bd);
+    border-radius:50% 50% 50% 50%/62% 62% 40% 40%;transition:background .2s}
+  #talk.goose .orb{animation:rock .5s ease-in-out infinite alternate;background:radial-gradient(circle at 36% 28%,#ffeab0 0 22%,var(--yolk) 70%)}
+  #talk.you .orb{transform:scale(.93)}
+  #talk.waiting .orb{opacity:.45}
+  @keyframes rock{from{transform:rotate(-3deg)}to{transform:rotate(3deg) scale(1.03)}}
+  #state{font:400 28px/1.2 var(--display);text-align:center}
+  #lines{flex:1;min-height:0;width:100%;max-width:640px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px}
+  #lines .say{background:#54294d;color:var(--shell)}
+  #lines .say.goose{background:var(--yolk);color:var(--plum)}
+  #end{flex:none;appearance:none;border:0;cursor:pointer;padding:13px 34px;border-radius:99px;background:var(--tomato);color:#fff;font:700 18px var(--body)}
+  #end:hover{background:#a92716}
+
+  [hidden]{display:none!important}
+  @media (max-width:800px){
+    #home{grid-template-columns:minmax(0,1fr)}
+    .perch{padding:36px 16px 40px}
+    .sheet{border-radius:28px 28px 0 0;padding:28px 16px 48px}
+    .egg{font-size:33px;width:min(58vw,240px)}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+  }
 </style>
 </head>
 <body>
-<!-- Teammates: restyle freely. All data comes from the fetch calls below. Shapes: web/mock-state.json, web/mock-tasks.jsonl -->
-<header>
-  <h1>Goose</h1>
-  <span id="dial"></span>
-  <input id="who" value="guest" aria-label="Your name">
-  <button id="start">New call</button>
-  <button id="join" disabled>Join with mic</button>
-</header>
-<p id="status">No room yet.</p>
-<main>
-  <section><h2>In the room</h2><ul id="people"></ul></section>
-  <section><h2>Floor</h2><p id="floor">-</p></section>
-  <div id="agents" style="display:contents"></div>
-  <section style="grid-column:1/-1"><h2>Task log</h2><ul id="tasks"></ul></section>
-</main>
+
+<div id="home" hidden>
+  <section class="perch">
+    <h1 id="hi">Hi, how are you?</h1>
+    <button class="egg" id="talkBtn">Talk to me, Goose</button>
+    <a class="live" id="live" hidden>Goose is on a call right now</a>
+    <p class="dial" id="dial" hidden>Anyone can call Goose on <a id="dialNum"></a></p>
+  </section>
+  <section class="sheet">
+    <h2>Calls</h2>
+    <div id="calls"></div>
+  </section>
+</div>
+
+<div id="detail" hidden><div class="col">
+  <a class="back" href="#/">All calls</a>
+  <div id="record"></div>
+</div></div>
+
+<div id="talk" class="waiting" hidden>
+  <div class="orb" aria-hidden="true"></div>
+  <p id="state" role="status">Calling Goose</p>
+  <div id="lines" aria-live="polite"></div>
+  <button id="end">End talk</button>
+</div>
+
 <script type="module">
 const $ = id => document.getElementById(id);
-const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-let room = new URLSearchParams(location.search).get('room');
-const pinned = !!room;   // ?room= stays put; otherwise follow the newest live call
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const get = async url => { const r = await fetch(url); if (!r.ok) throw new Error(`${url} answered ${r.status}`); return r.json(); };
+const OUTCOME = {resolved: 'Resolved', needs_you: 'Needs you', info: 'Info'};
+const badge = o => `<span class="badge ${esc(o)}">${esc(OUTCOME[o] || o)}</span>`;
+const isGoose = (who, c) => ['goose', 'agent', 'assistant', c.persona].includes(String(who).toLowerCase());
+const name = c => c.kind === 'owner' ? 'You and Goose' : c.contact?.name || c.number || 'Unknown caller';
 
-async function findRoom() {
-  const {dial_in, rooms} = await (await fetch('/api/rooms')).json();
-  $('dial').textContent = dial_in ? `Call ${dial_in}` : '';
-  if (!pinned && rooms.length && rooms[0].room !== room) { room = rooms[0].room; $('join').disabled = false; }
+function when(iso) {
+  const d = new Date(iso), days = Math.round((new Date().setHours(0,0,0,0) - new Date(d).setHours(0,0,0,0)) / 864e5);
+  const day = days === 0 ? 'Today' : days === 1 ? 'Yesterday' : d.toLocaleDateString([], {month: 'short', day: 'numeric'});
+  return `${day}, ${d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}`;
 }
 
-async function pollTasks() {
-  const list = await (await fetch('/api/tasks')).json();
-  $('tasks').innerHTML = list.map(t => `<li><b>${esc(t.persona)}</b>: ${esc(t.summary || '(no summary)')} <small>${esc(t.ended_at || '')}</small></li>`).join('') || '<li>No finished calls yet.</li>';
+/* Home */
+let me = {};
+async function loadHome() {
+  try {
+    const calls = await get('/api/calls');
+    $('calls').innerHTML = calls.map(c => `<a class="call" href="#/call/${encodeURIComponent(c.id)}">
+      <div class="top"><span class="who">${esc(name(c))}</span><span class="when">${esc(when(c.started_at))}</span>${badge(c.outcome)}</div>
+      <p class="sum">${esc(c.summary)}</p></a>`).join('')
+      || `<p class="quiet">No calls yet. ${me.dial_in ? `Call ${esc(me.dial_in)} and Goose will pick up.` : 'They will show up here when Goose answers one.'}</p>`;
+  } catch (e) { $('calls').innerHTML = `<p class="quiet">Could not load calls: ${esc(e.message)}. Check that the server is running.</p>`; }
+  try {
+    const on = (await get('/api/rooms')).rooms.find(r => r.room.startsWith('call-'));
+    $('live').hidden = !on;
+    if (on) $('live').href = `#/live/${encodeURIComponent(on.room)}`;
+  } catch { $('live').hidden = true; }   // no LiveKit keys: history still works
 }
 
-function agentPanel(a) {
-  return `<section><h2>${esc(a.persona)} (for ${esc(a.owner)}, caller: ${esc(a.caller_tier)})</h2>
-    <ul>${a.agenda.map(i => `<li class="${i.done ? 'done' : ''}">${esc(i.goal)}${i.id === a.focus ? ' &larr; now' : ''}</li>`).join('')}</ul>
-    <p>Known: ${esc(Object.entries(a.slots).map(([k, v]) => `${k}=${v}`).join(', ') || 'nothing yet')}</p>
-    ${a.pending_confirm ? `<p>Waiting for a yes: ${esc(a.pending_confirm)}</p>` : ''}
-    <ul>${a.log.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
-    ${a.summary ? `<p><b>Summary:</b> ${esc(a.summary)}</p>` : ''}</section>`;
+/* Call detail */
+async function loadCall(id) {
+  $('record').innerHTML = '';
+  let c;
+  try { c = await get(`/api/calls/${encodeURIComponent(id)}`); }
+  catch { $('record').innerHTML = '<h1>Call not found</h1><p class="meta">It may have been removed. Pick another from the list.</p>'; return; }
+  const mins = c.ended_at ? Math.max(1, Math.round((new Date(c.ended_at) - new Date(c.started_at)) / 6e4)) : 0;
+  const whoLine = [c.contact?.relationship, c.contact && c.number].filter(Boolean).join(', ');
+  $('record').innerHTML = `<h1>${esc(name(c))}</h1>
+    <p class="meta">${whoLine ? esc(whoLine) + '<br>' : ''}${esc(when(c.started_at))}${mins ? `, ${mins} min` : ''}</p>
+    ${badge(c.outcome)}
+    <h2>Summary</h2><p>${esc(c.summary)}</p>
+    ${c.actions?.length ? `<h2>Actions</h2><ul class="acts">${c.actions.map(a => `<li class="${a.done ? 'done' : ''}">${esc(a.text)}</li>`).join('')}</ul>` : ''}
+    <h2>Transcript</h2>
+    <div class="chat">${(c.transcript || []).map(t => {
+      const g = isGoose(t.who, c);
+      return `<div class="say ${g ? 'goose' : ''}"><b>${g ? 'Goose' : c.kind === 'owner' ? 'You' : esc(c.contact?.name || 'Caller')}</b>${esc(t.text)}</div>`;
+    }).join('') || '<p class="quiet">No transcript was saved for this call.</p>'}</div>`;
 }
 
-async function poll() {
-  if (!room) return;
-  const r = await fetch(`/api/rooms/${room}`);
-  if (!r.ok) { $('status').textContent = `Room ${room}: ${r.status}`; return; }
-  const s = await r.json();
-  $('status').textContent = `Room ${s.room}`;
-  $('people').innerHTML = s.participants.map(p => `<li>${esc(p.identity)}${p.agent_state ? ` (${esc(p.agent_state)})` : ''}</li>`).join('');
-  $('floor').textContent = s.floor.holder ? `${s.floor.holder} has the floor` : 'Free';
-  $('agents').innerHTML = Object.values(s.agents).map(agentPanel).join('');
+/* Live call panel */
+async function loadLive(room) {
+  try {
+    const s = await get(`/api/rooms/${encodeURIComponent(room)}`);
+    const agent = a => `<div class="panel"><b>Goose for ${esc(a.owner)}</b>, caller is ${esc(a.caller_tier)}
+      <ul>${(a.agenda || []).map(i => `<li class="${i.done ? 'done' : ''}">${esc(i.goal)}${i.id === a.focus ? ' (now)' : ''}</li>`).join('')}</ul>
+      ${a.pending_confirm ? `<p>Waiting for a yes: ${esc(a.pending_confirm)}</p>` : ''}${a.summary ? `<p>${esc(a.summary)}</p>` : ''}</div>`;
+    $('record').innerHTML = `<h1>Live call</h1>
+      <p class="meta">In the room: ${esc(s.participants.map(p => p.identity + (p.agent_state ? ` (${p.agent_state})` : '')).join(', ') || 'nobody yet')}</p>
+      <p>${s.floor.holder ? `${esc(s.floor.holder)} has the floor` : 'The floor is free'}</p>
+      ${Object.values(s.agents).map(agent).join('')}`;
+  } catch { $('record').innerHTML = '<h1>The call has ended</h1><p class="meta">Its record will appear under All calls.</p>'; }
 }
 
-$('start').onclick = async () => {
-  room = (await (await fetch('/api/rooms', {method: 'POST', headers: {'content-type': 'application/json'}, body: '{}'})).json()).room;
-  $('join').disabled = false;
-  poll();
+/* Talk */
+const LK = 'https://cdn.jsdelivr.net/npm/livekit-client@2.15.4/+esm';
+let talk = null;   // {end()} while a session is open
+
+function setState(mode, text) { $('talk').className = mode; $('state').textContent = text; }
+
+function say(seg, who, text) {   // one bubble per segment; a later piece of the same segment replaces it
+  if (!text) return;
+  const id = `seg-${seg}`;
+  let el = document.getElementById(id);
+  if (!el) {
+    el = Object.assign(document.createElement('div'), {id, className: `say ${who === 'goose' ? 'goose' : ''}`});
+    $('lines').append(el);
+  }
+  el.textContent = text;
+  $('lines').scrollTop = $('lines').scrollHeight;
+}
+
+function mockTalk() {   // GOOSE_MOCK: same view, scripted, no room
+  const script = [['goose', 'goose', 'Goose is talking', 'Hey Pranav. What do you need?'], ['you', 'you', "You're talking", 'Anything I should know about today?'],
+    ['goose', 'goose', 'Goose is talking', 'Sam wants dinner Saturday at seven. He is waiting on a yes.'], ['listening', 'goose', 'Goose is listening', '']];
+  let i = 0;
+  const t = setInterval(() => {
+    const [mode, who, label, text] = script[i];
+    setState(mode, label); say(i, who, text);
+    if (++i === script.length) clearInterval(t);
+  }, 1200);
+  return {end() { clearInterval(t); }};
+}
+
+async function liveTalk({url, token}) {
+  const {Room, RoomEvent} = await import(LK);
+  const room = new Room();
+  let agent = null, you = false;
+  const show = () => you ? setState('you', "You're talking")
+    : agent === 'speaking' ? setState('goose', 'Goose is talking')
+    : agent === 'thinking' ? setState('thinking', 'Goose is thinking')
+    : agent ? setState('listening', 'Goose is listening')
+    : setState('waiting', 'Waiting for Goose');
+  const late = setTimeout(() => { if (!agent) setState('waiting', 'Goose has not picked up. Check that the worker is running.'); }, 15000);
+
+  room.registerTextStreamHandler('lk.transcription', async (reader, from) => {
+    const who = from.identity === room.localParticipant.identity ? 'you' : 'goose';
+    const seg = reader.info.attributes?.['lk.segment_id'] || reader.info.id;
+    let text = '';
+    for await (const piece of reader) { text += piece; say(seg, who, text); }
+  });
+  room.on(RoomEvent.TrackSubscribed, t => { if (t.kind === 'audio') document.body.append(t.attach()); });
+  room.on(RoomEvent.TrackUnsubscribed, t => t.detach().forEach(el => el.remove()));
+  room.on(RoomEvent.ParticipantAttributesChanged, (changed, p) => {
+    if (p !== room.localParticipant && p.attributes['lk.agent.state']) { agent = p.attributes['lk.agent.state']; show(); }
+  });
+  room.on(RoomEvent.ActiveSpeakersChanged, speakers => { you = speakers.includes(room.localParticipant); show(); });
+  room.on(RoomEvent.Disconnected, () => { if (talk) location.hash = '#/'; });
+
+  const session = {end() { clearTimeout(late); room.disconnect(); }};
+  await room.connect(url, token);
+  await room.localParticipant.setMicrophoneEnabled(true);
+  await room.startAudio();
+  show();
+  return session;
+}
+
+function endTalk() {
+  const t = talk;
+  talk = null;
+  t?.end?.();
+  document.querySelectorAll('body > audio').forEach(a => a.remove());
+}
+
+$('talkBtn').onclick = async () => {
+  talk = {};
+  $('lines').replaceChildren();
+  setState('waiting', 'Calling Goose');
+  location.hash = '#/talk';
+  const mine = talk;
+  try {
+    const r = await fetch('/api/talk', {method: 'POST'});
+    if (!r.ok) throw new Error(`the server answered ${r.status}`);
+    const res = await r.json();
+    const s = res.url ? await liveTalk(res) : mockTalk();
+    if (talk === mine) mine.end = s.end; else s.end();   // ended while connecting
+  } catch (e) {
+    if (talk !== mine) return;
+    setState('waiting', e.name === 'NotAllowedError' ? 'Allow the microphone for this page, then try again.' : `Could not reach Goose: ${e.message}`);
+    $('end').textContent = 'Back';
+  }
 };
+$('end').onclick = () => { location.hash = '#/'; };
 
-$('join').onclick = async () => {
-  const {url, token} = await (await fetch(`/api/rooms/${room}/token`, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({identity: $('who').value})})).json();
-  if (!url) { $('status').textContent = 'Mock mode: nothing to join.'; return; }
-  const {Room, RoomEvent} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2.15.4/+esm');
-  const lk = new Room();
-  lk.on(RoomEvent.TrackSubscribed, t => document.body.appendChild(t.attach()));
-  await lk.connect(url, token);
-  await lk.localParticipant.setMicrophoneEnabled(true);
-  $('status').textContent = `Joined ${room} as ${$('who').value}`;
-};
+/* Routes */
+let timer;
+function route() {
+  clearInterval(timer);
+  const [, view, id] = location.hash.split('/').map(decodeURIComponent);
+  if (view !== 'talk' && talk) endTalk();
+  if (view === 'talk' && !talk) { location.hash = '#/'; return; }   // a reload cannot reopen the mic without a click
+  $('home').hidden = !!view;
+  $('detail').hidden = view !== 'call' && view !== 'live';
+  $('talk').hidden = view !== 'talk';
+  scrollTo(0, 0);
+  if (view === 'talk') $('end').textContent = 'End talk';
+  else if (view === 'call') loadCall(id);
+  else if (view === 'live') { $('record').innerHTML = ''; loadLive(id); timer = setInterval(() => loadLive(id), 1000); }
+  else { loadHome(); timer = setInterval(loadHome, 4000); }
+}
+addEventListener('hashchange', route);
 
-if (room) $('join').disabled = false;
-setInterval(poll, 1000);
-setInterval(pollTasks, 3000);
-setInterval(findRoom, 2000);
-findRoom().then(poll);
-pollTasks();
+me = await get('/api/me').catch(() => ({}));
+if (me.owner) $('hi').textContent = `Hi ${me.owner}, how are you?`;
+if (me.dial_in) {
+  $('dial').hidden = false;
+  $('dialNum').textContent = me.dial_in;
+  $('dialNum').href = `tel:${me.dial_in.replace(/\s/g, '')}`;
+}
+route();
 </script>
 </body>
 </html>

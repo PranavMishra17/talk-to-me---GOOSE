@@ -1,6 +1,6 @@
 """Web API. Run: uv run uvicorn app.api:app --port 8000
-GOOSE_MOCK=1 needs no keys and serves web/mock-state.json, so the frontend can be built with nothing else running.
-The contract is the shape of web/mock-state.json. Live state comes from each agent's `goose.state` participant attribute.
+GOOSE_MOCK=1 needs no keys and serves web/mock-*.json, so the frontend can be built with nothing else running.
+Live room state comes from each agent's `goose.state` participant attribute; call history from proxy_core.calls.
 """
 import json
 import os
@@ -10,26 +10,27 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from livekit import api
-from pydantic import BaseModel
 
-from proxy_core.config import ROOT, TASKS, load_env
+from proxy_core.config import ROOT, load_config, load_env
+from proxy_core.personality import list_packs
 
 load_env()
 MOCK = os.environ.get("GOOSE_MOCK") == "1"
 MOCK_FILE = ROOT / "web" / "mock-state.json"
-MOCK_TASKS = ROOT / "web" / "mock-tasks.jsonl"
+MOCK_CALLS = ROOT / "web" / "mock-calls.json"
 AGENT_KIND = 4   # ParticipantInfo.Kind.AGENT
 app = FastAPI(title="Goose")
 LAST: dict[str, dict] = {}   # the panel keeps a finished call's summary after LiveKit closes the room
 
 
-class NewRoom(BaseModel):
-    agent: str | None = "ash"   # None makes an empty room, with no credits spent
-    task: str = "Take a message and coordinate."
+try:
+    from proxy_core.calls import get_call, list_calls
+except ImportError:   # until proxy_core/calls.py lands
+    def list_calls() -> list[dict]:
+        return sorted(json.loads(MOCK_CALLS.read_text(encoding="utf-8")), key=lambda c: c["started_at"], reverse=True)
 
-
-class Join(BaseModel):
-    identity: str
+    def get_call(id: str) -> dict | None:
+        return next((c for c in list_calls() if c["id"] == id), None)
 
 
 def _lk():
@@ -52,15 +53,49 @@ def live_state(name: str, floor_json: str, people: list) -> dict:
             "floor": {"holder": floor.get("holder"), "addressed_to": floor.get("addressed_to")}}
 
 
-def read_tasks(path: Path) -> list:
-    """Newest first. A half-written last line is skipped: the worker may be appending."""
-    out = []
-    for line in path.read_text(encoding="utf-8").splitlines() if path.exists() else []:
-        try:
-            out.append(json.loads(line))
-        except ValueError:
-            pass
-    return out[::-1]
+def _first_persona() -> tuple[str, str]:
+    """(agent name, owner) of the first persona in config.yaml, the one Pranav talks to."""
+    persona, p = next(iter(load_config()["personas"].items()))
+    return persona, p["owner"]
+
+
+@app.get("/api/me")
+async def me():
+    return {"owner": _first_persona()[1].title(), "dial_in": os.environ.get("GOOSE_DIAL_IN") or ("+1 555 0100" if MOCK else ""),
+            "personalities": list_packs()}
+
+
+@app.get("/api/calls")
+async def calls():
+    return list_calls()
+
+
+@app.get("/api/calls/{id}")
+async def call(id: str):
+    found = get_call(id)
+    if not found:
+        raise HTTPException(404, "no such call")
+    return found
+
+
+@app.post("/api/talk")
+async def talk():
+    """Pranav's private line: a room with only him and his agent. Phone rooms are `call-*`, these are `talk-*`."""
+    if MOCK:
+        return {"room": "mock-room", "url": "", "token": "mock"}
+    agent, owner = _first_persona()
+    name = f"talk-{os.urandom(4).hex()}"
+    lk = _lk()
+    try:
+        await lk.room.create_room(api.CreateRoomRequest(name=name, empty_timeout=120))
+        await lk.agent_dispatch.create_dispatch(api.CreateAgentDispatchRequest(
+            agent_name=agent, room=name, metadata=json.dumps({"mode": "owner"})))
+    finally:
+        await lk.aclose()
+    jwt = api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]) \
+        .with_identity(owner).with_name(owner.title()) \
+        .with_grants(api.VideoGrants(room_join=True, room=name)).to_jwt()
+    return {"room": name, "url": os.environ["LIVEKIT_URL"], "token": jwt}
 
 
 @app.get("/api/rooms")
@@ -68,7 +103,7 @@ async def rooms():
     """Live rooms, newest first. Phone calls create their own rooms, so this is how the page finds one."""
     dial_in = os.environ.get("GOOSE_DIAL_IN", "")
     if MOCK:
-        return {"dial_in": dial_in or "+1 555 0100", "rooms": [{"room": "mock-room", "people": 3}]}
+        return {"dial_in": dial_in or "+1 555 0100", "rooms": [{"room": "call-mock", "people": 2}]}
     lk = _lk()
     try:
         found = (await lk.room.list_rooms(api.ListRoomsRequest())).rooms
@@ -76,27 +111,6 @@ async def rooms():
         await lk.aclose()
     found = sorted(found, key=lambda r: r.creation_time, reverse=True)
     return {"dial_in": dial_in, "rooms": [{"room": r.name, "people": r.num_participants} for r in found]}
-
-
-@app.get("/api/tasks")
-async def tasks():
-    return read_tasks(MOCK_TASKS if MOCK else TASKS)
-
-
-@app.post("/api/rooms")
-async def create_room(body: NewRoom):
-    if MOCK:
-        return {"room": "mock-room"}
-    name = f"goose-{os.urandom(4).hex()}"
-    lk = _lk()
-    try:
-        await lk.room.create_room(api.CreateRoomRequest(name=name, empty_timeout=120))
-        if body.agent:
-            await lk.agent_dispatch.create_dispatch(api.CreateAgentDispatchRequest(
-                agent_name=body.agent, room=name, metadata=json.dumps({"task": body.task})))
-    finally:
-        await lk.aclose()
-    return {"room": name}
 
 
 @app.get("/api/rooms/{name}")
@@ -117,16 +131,6 @@ async def room_state(name: str):
     state["agents"] = {**LAST.get(name, {}).get("agents", {}), **state["agents"]}   # an agent that left keeps its panel
     LAST[name] = state
     return state
-
-
-@app.post("/api/rooms/{name}/token")
-async def token(name: str, body: Join):
-    if MOCK:
-        return {"url": "", "token": "mock"}
-    jwt = api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]) \
-        .with_identity(body.identity).with_name(body.identity) \
-        .with_grants(api.VideoGrants(room_join=True, room=name)).to_jwt()
-    return {"url": os.environ["LIVEKIT_URL"], "token": jwt}
 
 
 @app.get("/")
