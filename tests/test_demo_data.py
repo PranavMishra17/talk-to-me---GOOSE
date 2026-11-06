@@ -60,3 +60,14 @@ def test_real_numbers_stay_with_pranav(monkeypatch, tmp_path):
     monkeypatch.setenv("GOOSE_CONTACTS_LOCAL", str(local))
     assert vault.find_contact("+19998887777")["name"] == "Real"
     assert vault.find_contact("+19998887777", "skyler") is None
+
+
+def test_skyler_is_in_her_book_and_pranav_is_a_stranger_there(tmp_path, monkeypatch):
+    assert vault.find_contact("+11111111", "skyler")["relationship"] == "owner"
+    local = tmp_path / "local.json"
+    local.write_text('{"contacts": [{"name": "Pranav", "relationship": "owner", "tier": "private", "numbers": ["+15550100111"]}]}')
+    monkeypatch.setenv("GOOSE_CONTACTS_LOCAL", str(local))
+    assert vault.find_contact("+15550100111", "pranav")["relationship"] == "owner"
+    assert vault.find_contact("+15550100111", "skyler") is None
+    assert "Pranav" not in [c["name"] for c in vault.contacts(vault.owner_dir("skyler"))]
+    assert vault.number_for("Pranav", "skyler") is None

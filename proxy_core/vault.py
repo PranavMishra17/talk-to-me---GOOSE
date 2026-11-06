@@ -150,7 +150,8 @@ def phone_tier(tier: str) -> str:
 def _local(dir) -> list[dict]:
     """Real numbers, pasted in by hand, so a bad file or entry is skipped: it must never take a call down."""
     try:
-        rows = json.loads(Path(os.environ.get("GOOSE_CONTACTS_LOCAL") or dir / "contacts.local.json").read_text(encoding="utf-8"))
+        # The override is Pranav's book: on another owner it would make his number that owner's too.
+        rows = json.loads(Path(dir == DATA and os.environ.get("GOOSE_CONTACTS_LOCAL") or dir / "contacts.local.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
     rows = rows.get("contacts", []) if isinstance(rows, dict) else rows
