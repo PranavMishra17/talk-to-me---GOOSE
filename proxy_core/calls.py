@@ -11,6 +11,8 @@ from proxy_core.slots import _message
 
 SEED = ROOT / "data" / "calls"
 OUTCOMES = ("resolved", "needs_you", "info")
+_BAD_ENDS = ("hostile caller", "caller went quiet")
+_CODE_ENDS = (*_BAD_ENDS, "caller said goodbye", "caller confirmed")
 
 
 def runtime_dir() -> Path:
@@ -70,10 +72,15 @@ def outcome(who: str, log: list[str], slots: dict, turns: list[dict]) -> tuple[s
             actions.append(f"Confirm {entry[5:]} with {first}")
         elif entry.startswith("permission? "):
             actions.append(f"Decide if {first} may know: {entry[12:]}")
-    what = _message(slots)
-    summary = f"{first} left a message: {what}." if what else f"{first} said: {heard[0]}" if heard else f"{first} hung up without a word."
     ended = next((e[5:] for e in reversed(log) if e.startswith("end: ")), "")
-    status = "needs_you" if actions else "resolved" if heard and ended in ("caller said goodbye", "caller confirmed") else "info"
+    said = _message(slots) if slots.get("details") else next((e.split(": ", 1)[1] for e in log if e.startswith("message from ")), "")
+    if said:
+        summary = f"{first} left a message: {said.rstrip(' .?!')}."
+    elif ended and ended not in _CODE_ENDS:      # end_call's summary, from the model that heard the whole call
+        summary = ended
+    else:
+        summary = f"{first} said: {max(heard, key=len)}" if heard else f"{first} hung up without a word."
+    status = "needs_you" if actions else "info" if not heard or not ended or ended in _BAD_ENDS else "resolved"
     return summary, status, [{"text": a, "done": False} for a in actions]
 
 
@@ -90,7 +97,7 @@ def brief(records: list[dict], owner: str) -> str:
     if not waiting:
         return " ".join([*words, "Nothing needs you."])
     words += [f"{len(waiting)} need{'s' * (len(waiting) == 1)} you.", *(c["summary"] for c in waiting[:2])]
-    names = [(c.get("contact") or {}).get("name", "the unknown caller").split()[0] for c in waiting[:2]]
+    names = [c["contact"]["name"].split()[0] if c.get("contact") else "the unknown caller" for c in waiting[:2]]
     if len(names) == 2:
         words.append(f"Which first, {names[0]} or {names[1]}?")
     return " ".join(words)
@@ -100,6 +107,7 @@ if __name__ == "__main__":
     assert len(list_calls()) >= 4 and get_call("../../.env") is None
     log = ["message from Sam: dinner works", "end: caller confirmed"]
     s, o, a = outcome("Sam Okafor", log, {"details": "dinner works"}, [{"who": "caller", "text": "hi"}])
+    assert outcome("Sam", ["end: Sam confirmed dinner."], {"topic": "dinner?"}, [{"who": "caller", "text": "x"}])[:2] == ("Sam confirmed dinner.", "resolved")
     assert (o, a[0]["text"]) == ("needs_you", "Reply to Sam: dinner works") and s == "Sam left a message: dinner works."
     assert outcome("Unknown caller", [], {}, [])[:2] == ("Unknown hung up without a word.", "info")
     assert outcome("Sam", ["end: caller said goodbye"], {}, [{"who": "caller", "text": "bye"}])[1] == "resolved"

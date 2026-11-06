@@ -4,7 +4,6 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-TASKS = Path(os.environ.get("GOOSE_DATA_DIR") or ROOT) / "goose_tasks.jsonl"   # the room dies with the call; this does not
 # Allowed `kind` per provider; `mock` is valid everywhere so tests need zero network.
 KINDS = {
     "stt": {"livekit_inference", "deepgram_flux", "mock"},

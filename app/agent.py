@@ -14,12 +14,13 @@ from pathlib import Path
 from livekit import api, rtc
 from livekit.agents import Agent, FlushSentinel, RunContext, StopResponse, function_tool, get_job_context
 
-from proxy_core import floor, policy, slots
+from app.tools import DataTools
+from proxy_core import calls, floor, policy, slots, vault
 from proxy_core.agenda import CONFIRM_TOOLS, Agenda, is_bye, is_yes, summoned_planner
-from proxy_core.config import TASKS, agent_name, load_config
+from proxy_core.config import agent_name, load_config
 from proxy_core.decider import decide
 from proxy_core.echo import EchoGuard
-from proxy_core.personality import confirm_line, farewell, load_pack, nudge_text, render_style, tool_filler
+from proxy_core.personality import confirm_line, farewell, greeting, load_pack, nudge_text, render_style, tool_filler
 from proxy_core.silence import ACTIONS, SilenceLadder
 
 logger = logging.getLogger("goose")
@@ -28,14 +29,19 @@ JOIN_TIMEOUT_S = 8
 logger = logging.getLogger("goose")
 
 
-class GooseAgent(Agent):
+def _now():
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+class GooseAgent(DataTools, Agent):
     def __init__(self, persona="ash", caller="", task="Take a message and coordinate.", cfg=None, lead=None,
-                 request="", voucher=None):
+                 request="", voucher=None, pack=None):
         self.cfg = cfg or load_config()
         p = self.cfg["personas"][persona]
         self.persona, self.owner, self.lead = persona, p["owner"], lead or persona
         self.request, self.voucher = request, voucher   # set when summoned: what was asked, (tier, owner) of who asked
-        self.caller, self.caller_tier = caller, self._tier(caller)   # code decides tier, never the model
+        self.pack_name = pack or p["pack"]
+        self.started_at = _now()
         self.room = None                  # set by the worker; None in text-mode bench
         self.floor = None                 # RoomFloor, set by the worker
         self.human_stopped = None         # when the caller last stopped speaking
@@ -49,9 +55,10 @@ class GooseAgent(Agent):
         self._turn_id, self._asked_on, self._done, self._closing, self._bye_open = None, None, None, False, False
         self.agenda = Agenda(self.cfg["limits"]["max_turns_per_call"])
         self.agenda.plan(request or task, summoned_planner if request else None)
+        self._identify(caller)
         if request:
             self.agenda.update_slots({"tier": self.caller_tier})
-        self.pack = load_pack(p["pack"])
+        self.pack = load_pack(self.pack_name)
         self.hostile = 0
         self._fillers = 0
         self._block, self._reading = None, False
@@ -60,10 +67,19 @@ class GooseAgent(Agent):
         self.ladder, self._quiet = SilenceLadder(persona, self.cfg["session"]["silence_nudges_s"]), None
         super().__init__(instructions=self._prompt())
 
-    def _tier(self, number):
+    def _identify(self, number):
+        """Caller ID finds the contact and the tier. Code decides, never the model, and nothing the caller says reaches this."""
+        self.caller, self.contact, self._known = number, vault.find_contact(number, self.owner), ""
         if self.voucher:
-            return policy.summoned_tier(self.owner, number, *self.voucher)
-        return policy.resolve_tier(self.owner, number)
+            self.caller_tier = policy.summoned_tier(self.owner, number, *self.voucher)
+        elif self.contact:
+            self.caller_tier = vault.phone_tier(self.contact["tier"])
+        else:
+            self.caller_tier = policy.resolve_tier(self.owner, number)
+        if self.contact:
+            name = self.contact["name"]
+            self._known = f"\n\n# WHO IS CALLING\nYou know this caller, so never ask who is calling.\n{vault.caller_context(self.contact, calls.calls_with(name))}"
+            self.agenda.update_slots({"name": name.split()[0]})
 
     def _prompt(self):
         peers = [f"{p['owner'].title()}'s assistant is {n.title()}" for n, p in self.cfg["personas"].items() if n != self.persona]
@@ -73,14 +89,15 @@ class GooseAgent(Agent):
             network += f" If get_facts does not return something, say you can't share that with this caller and offer to ask {self.owner.title()}."
         return PROMPT.format(assistant=self.persona.title(), owner=self.owner.title(), caller_tier=self.caller_tier,
                              style=render_style(self.pack), agenda=self.agenda.render_prompt_block()) + \
-            "\n\n# OTHER ASSISTANTS\n" + ", ".join(peers) + "." + network
+            "\n\n# OTHER ASSISTANTS\n" + ", ".join(peers) + "." + network + self._known
 
     # HOOK 1 (on_enter): load_state() then greet. TODO: restore agenda from room metadata.
     async def on_enter(self):
         if self.request:
             asyncio.ensure_future(self._introduce())
             return
-        self.session.generate_reply(instructions=f"Greet the caller as {self.persona.title()}, {self.owner.title()}'s assistant, and ask who is calling.", tool_choice="none")
+        name = self.contact["name"].split()[0] if self.contact else None
+        self.session.say(greeting(self.pack, self.persona.title(), self.owner.title(), name))
 
     async def _introduce(self):
         """S5-03 + S3-05: self-intro, then the request, from facts code already filtered by tier. No tool round trip."""
@@ -126,7 +143,7 @@ class GooseAgent(Agent):
 
     async def set_caller(self, number):
         """Caller ID arrives with the SIP participant, after the agent exists."""
-        self.caller, self.caller_tier = number, self._tier(number)
+        self._identify(number)
         await self.update_instructions(self._prompt())
         self.publish()
 
@@ -445,10 +462,17 @@ class GooseAgent(Agent):
             return
         ended = next((e[5:] for e in reversed(self.log) if e.startswith("end: ")), "caller hung up")
         self.summary = slots.summary(self.agenda.slots, self.owner.title(), ended)
-        with TASKS.open("a", encoding="utf-8") as f:
-            f.write(json.dumps({**self.state(), "room": self.room.name if self.room else "",
-                                "ended_at": datetime.now().astimezone().isoformat(timespec="seconds")}) + "\n")
         self.publish()
+
+    def call_record(self, call_id, turns):
+        """The record for GOOSE_DATA_DIR/calls. A request still waiting on a yes when the line dropped still counts."""
+        log = self.log + [f"message from {a['from_name']}: {a['message']}" for t, a in self.agenda.pending.items() if t == "take_message"]
+        who = self.contact["name"] if self.contact else self.agenda.slots.get("name") or "Unknown caller"
+        summary, outcome, actions = calls.outcome(who, log, self.agenda.slots, turns)
+        c = self.contact
+        return {"id": call_id, "started_at": self.started_at, "ended_at": _now(), "kind": "phone", "number": self.caller,
+                "contact": {k: c[k] for k in ("name", "relationship", "tier")} if c else None, "persona": self.persona,
+                "pack": self.pack_name, "summary": summary, "outcome": outcome, "actions": actions, "transcript": turns}
 
     def _note(self, found):
         """S3-03: slots come from regex and tool arguments, never from an extra model call. True = a value changed."""
