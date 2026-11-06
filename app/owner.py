@@ -12,7 +12,7 @@ from livekit.agents import Agent, function_tool
 
 from app.tools import DataTools
 from proxy_core import calls, vault
-from proxy_core.personality import load_pack, render_style
+from proxy_core.personality import load_pack, owner_hello, render_style
 
 logger = logging.getLogger("goose")
 BRIEF_TRIES, BRIEF_WAIT_S = 3, 5
@@ -24,24 +24,42 @@ class OwnerAgent(DataTools, Agent):
         self.persona, self.owner, self.pack_name, self.number, self.caller_tier = persona, owner, pack_name, number, tier
         self.started_at = datetime.now().astimezone().isoformat(timespec="seconds")
         self._last_event = ""
+        records = calls.list_calls()
+        self._offer, self._brief = calls.offer(records), calls.brief(records, owner.title())
         now = datetime.now()
         today = f"{now:%A} {now.date()}, so tomorrow is {now.date() + timedelta(days=1)}"
         super().__init__(instructions=PROMPT.format(assistant=persona.title(), owner=owner.title(), today=today, style=render_style(load_pack(pack_name), "own")))
 
     async def on_enter(self):
-        asyncio.ensure_future(self._brief())
+        asyncio.ensure_future(self._hello())
 
-    async def _brief(self):
-        """Two real sessions never greeted, with no error logged and the cause unknown, so a stalled briefing is retried."""
-        line = calls.brief(calls.list_calls(), self.owner.title())
+    async def _hello(self):
+        """Code opens, with a person's hello and no calls. Two real sessions never greeted, so a stall is retried."""
+        line = owner_hello(load_pack(self.pack_name), self.persona.title(), self.owner.title())
         for attempt in range(BRIEF_TRIES):
             speech = self.session.say(line)
             for _ in range(int(BRIEF_WAIT_S * 10)):
                 if self.session.agent_state == "speaking" or speech.done():
                     return
                 await asyncio.sleep(0.1)
-            logger.warning("owner briefing stalled, attempt %d", attempt + 1)
+            logger.warning("owner hello stalled, attempt %d", attempt + 1)
             speech.interrupt(force=True)
+
+    def _next_step(self, turns):
+        """The update comes after the hello is answered, in words code wrote from the records, so the model cannot invent one."""
+        if turns == 1:
+            return (f'They just answered your hello. Say a few warm words back, then say: "{self._offer}" '
+                    f'If they already asked what they need to do or who called, skip that and say this, word for word: "{self._brief}"')
+        if turns == 2:
+            return f'If they want the rundown, say this, word for word: "{self._brief}" If they asked something else, answer that.'
+
+    async def llm_node(self, chat_ctx, tools, model_settings):
+        """Counted from the conversation, not a flag: preemptive generation can run a turn twice."""
+        if note := self._next_step(sum(getattr(i, "role", "") == "user" for i in chat_ctx.items)):
+            chat_ctx = chat_ctx.copy()
+            chat_ctx.add_message(role="system", content=note)
+        async for chunk in Agent.default.llm_node(self, chat_ctx, tools, model_settings):
+            yield chunk
 
     def call_record(self, call_id, turns):
         return {"id": call_id, "started_at": self.started_at, "ended_at": datetime.now().astimezone().isoformat(timespec="seconds"),

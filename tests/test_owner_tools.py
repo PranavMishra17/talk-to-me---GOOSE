@@ -10,6 +10,7 @@ from app.agent import GooseAgent
 from app.owner import OwnerAgent
 from proxy_core import vault
 from proxy_core.config import load_config
+from proxy_core.personality import load_pack, owner_hello
 
 
 def play2(turns, tier="private"):
@@ -33,7 +34,28 @@ def play(steps, line, tier="private"):
 def overlay(tmp_path, monkeypatch):
     monkeypatch.setenv("GOOSE_DATA_DIR", str(tmp_path))
     monkeypatch.delenv("GOOSE_AGENT_TAG", raising=False)
-    monkeypatch.setattr(OwnerAgent, "_brief", lambda self: asyncio.sleep(0))   # a text session has no TTS to say it with
+    monkeypatch.setattr(OwnerAgent, "_hello", lambda self: asyncio.sleep(0))   # a text session has no TTS to say it with
+
+
+def test_the_hello_has_no_calls_and_the_update_waits_for_an_answer():
+    seen = []
+
+    class Watch(Script):
+        def chat(self, *, chat_ctx, **kw):
+            seen.append(" ".join(i.text_content or "" for i in chat_ctx.items if getattr(i, "role", "") == "system"))
+            return super().chat(chat_ctx=chat_ctx, **kw)
+
+    async def run():
+        async with AgentSession(llm=Watch(["Good. Couple of things.", "Rohan needs you.", "Sure."])) as session:
+            await session.start(OwnerAgent("goose", "pranav", "goose"))
+            for line in ("Good thanks.", "Yes please.", "Thanks."):
+                await session.run(user_input=line)
+    asyncio.run(run())
+    assert "want the rundown" in seen[0] and "Rohan" in seen[0]
+    assert "word for word" in seen[1] and "Rohan" in seen[1]
+    assert "word for word" not in seen[2]
+    hello = owner_hello(load_pack("goose"), "Goose", "Pranav")
+    assert hello == "Hey Pranav, Goose here, how's it going?" and "call" not in hello
 
 
 def test_stage_flow_adds_dinner_then_a_short_follow_up_moves_it():

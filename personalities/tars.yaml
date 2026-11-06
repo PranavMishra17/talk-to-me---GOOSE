@@ -18,6 +18,7 @@ farewell:
   - "Logged. Goodbye."
   - "Conversation closed. Goodbye."
 greeting:
+  owner: "{owner}. {assistant} here. How are things?"
   known: "{name}. {assistant}, for {owner}. State your business."
   unknown: "{assistant}, for {owner}. He's unreachable. Who is this?"
 confirm:

@@ -23,10 +23,13 @@ def test_runtime_joins_seeds_newest_first_and_mark_done_survives(tmp_path, monke
 
 def test_brief_comes_from_records(monkeypatch, tmp_path):
     monkeypatch.setenv("GOOSE_DATA_DIR", str(tmp_path))   # harness runs write real records to runtime/
-    assert calls.brief(calls.list_calls(), "Pranav") == "Hi Pranav, Rohan needs to know if you can get Mum from Logan on Thursday. Want the rest?"
-    assert calls.brief([record("a", summary="Pranav's approval is the blocker for Pranav.")], "Pranav") == "Hi Pranav, your approval is the blocker for you."
-    assert calls.brief([{**record("a"), "actions": []}], "Pranav") == "Hi Pranav, nothing needs you. Want the rest?"
-    assert calls.brief([], "Pranav") == "Hi Pranav, no calls yet."
+    assert calls.brief(calls.list_calls(), "Pranav") == "Rohan needs to know if you can get Mum from Logan on Thursday. Want the rest?"
+    assert calls.brief([record("a", summary="Pranav's approval is the blocker for Pranav.")], "Pranav") == "Your approval is the blocker for you."
+    assert calls.brief([{**record("a"), "actions": []}], "Pranav") == "Nothing needs you. Want the rest?"
+    assert calls.brief([], "Pranav") == "No calls yet."
+    assert calls.offer(calls.list_calls()) == "Couple of things while you were out, want the rundown?"
+    assert calls.offer([record("a")]) == "One thing while you were out, want it?"
+    assert calls.offer([]) == "Nothing needs you right now."
 
 
 def test_a_tagged_run_never_reaches_the_real_history(tmp_path, monkeypatch):

@@ -18,6 +18,7 @@ farewell:
   - "Catch you later."
 fish_voice: bf322df2096a46f18c579d0baa36f41d  # Adrian, LiveKit Fish docs
 greeting:
+  owner: "Hey {owner}, {assistant} here. How's it going?"
   known: "Hey {name}, {assistant} here. What do you need?"
   unknown: "Hey, {assistant} here, {owner}'s assistant. Who's this?"
 confirm:

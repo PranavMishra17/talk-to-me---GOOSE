@@ -18,6 +18,7 @@ farewell:
   - "Logged. Goodbye."
   - "That's handled. Goodbye."
 greeting:
+  owner: "Hello {owner}, {assistant} here. How are you doing?"
   known: "{name}. {assistant} here. Go ahead."
   unknown: "I'm {assistant}, I handle things for {owner} while he's unavailable. Who is this?"
 confirm:

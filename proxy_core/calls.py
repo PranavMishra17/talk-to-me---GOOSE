@@ -91,15 +91,23 @@ def to_owner(text: str, owner: str) -> str:
     return re.sub(rf"\b{owner}\b", "you", re.sub(rf"\b{owner}'s\b", "your", text))
 
 
+def offer(records: list[dict]) -> str:
+    """Said after the hello: what is waiting, without the detail yet."""
+    waiting = sum(any(not a["done"] for a in c["actions"]) for c in records if c["kind"] == "phone")
+    if not waiting:
+        return "Nothing needs you right now."
+    return "One thing while you were out, want it?" if waiting == 1 else "Couple of things while you were out, want the rundown?"
+
+
 def brief(records: list[dict], owner: str) -> str:
     """What the owner hears first: the newest open item, then the offer of the rest. From records only."""
     phone = [c for c in records if c["kind"] == "phone"]
     if not phone:
-        return f"Hi {owner}, no calls yet."
+        return "No calls yet."
     waiting = [c for c in phone if any(not a["done"] for a in c["actions"])]
     first = to_owner(waiting[0]["summary"], owner) if waiting else "nothing needs you"
     rest = len(phone) > 1 or not waiting
-    return f"Hi {owner}, {first.rstrip('.')}." + (" Want the rest?" if rest else "")
+    return f"{first[0].upper()}{first[1:].rstrip('.')}." + (" Want the rest?" if rest else "")
 
 
 if __name__ == "__main__":
@@ -111,5 +119,5 @@ if __name__ == "__main__":
     assert outcome("Unknown caller", [], {}, [])[:2] == ("Unknown hung up without a word.", "info")
     assert outcome("Sam", ["end: caller said goodbye"], {}, [{"who": "caller", "text": "bye"}])[1] == "resolved"
     assert outcome("Sam", ["end: hostile caller"], {}, [{"who": "caller", "text": "x"}])[1] == "info"
-    assert brief([], "Pranav") == "Hi Pranav, no calls yet."
+    assert brief([], "Pranav") == "No calls yet."
     print(brief(list_calls(), "Pranav"))

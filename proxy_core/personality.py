@@ -75,6 +75,11 @@ def greeting(pack: dict, assistant: str, owner: str, name: str | None = None) ->
     return pack["greeting"]["known" if name else "unknown"].format(assistant=assistant, owner=owner, name=name)
 
 
+def owner_hello(pack: dict, assistant: str, owner: str) -> str:
+    """How the assistant opens with its own owner: a person first, the calls after they answer."""
+    return pack["greeting"].get("owner", "Hey {owner}, {assistant} here, how's it going?").format(assistant=assistant, owner=owner)
+
+
 def confirm_line(pack: dict, tool: str, owner: str) -> str:
     """One in-character line that asks for a yes before an action."""
     return pack["confirm"][tool].format(owner=owner)
