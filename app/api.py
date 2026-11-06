@@ -1,5 +1,5 @@
 """Web API. Run: uv run uvicorn app.api:app --port 8000
-GOOSE_MOCK=1 needs no keys and serves web/mock-*.json, so the frontend can be built with nothing else running.
+GOOSE_MOCK=1 needs no keys and serves web/mock-state.json plus the seed calls, so the frontend can be built with nothing else running.
 Live room state comes from each agent's `goose.state` participant attribute; call history from proxy_core.calls.
 """
 import json
@@ -11,26 +11,16 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from livekit import api
 
+from proxy_core.calls import get_call, list_calls
 from proxy_core.config import ROOT, load_config, load_env
 from proxy_core.personality import list_packs
 
 load_env()
 MOCK = os.environ.get("GOOSE_MOCK") == "1"
 MOCK_FILE = ROOT / "web" / "mock-state.json"
-MOCK_CALLS = ROOT / "web" / "mock-calls.json"
 AGENT_KIND = 4   # ParticipantInfo.Kind.AGENT
 app = FastAPI(title="Goose")
 LAST: dict[str, dict] = {}   # the panel keeps a finished call's summary after LiveKit closes the room
-
-
-try:
-    from proxy_core.calls import get_call, list_calls
-except ImportError:   # until proxy_core/calls.py lands
-    def list_calls() -> list[dict]:
-        return sorted(json.loads(MOCK_CALLS.read_text(encoding="utf-8")), key=lambda c: c["started_at"], reverse=True)
-
-    def get_call(id: str) -> dict | None:
-        return next((c for c in list_calls() if c["id"] == id), None)
 
 
 def _lk():

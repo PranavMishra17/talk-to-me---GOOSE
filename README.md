@@ -16,7 +16,7 @@ uv run python -m app.worker console      # talk to Ash locally (credits; Ctrl+C 
 
 ## Frontend
 
-No keys needed. This serves the page with fake data from `web/mock-*.json`:
+No keys needed. This serves the page with fake data from `web/mock-state.json` and the seed calls:
 
 ```bash
 GOOSE_MOCK=1 uv run uvicorn app.api:app --port 8000     # PowerShell: $env:GOOSE_MOCK=1; uv run uvicorn app.api:app --port 8000
@@ -27,7 +27,7 @@ Open http://localhost:8000. Change only `web/`. The API:
 | Call | Returns |
 |---|---|
 | `GET /api/me` | `{owner, dial_in, personalities}` |
-| `GET /api/calls`, `GET /api/calls/{id}` | call history newest first, one full record; shape of `web/mock-calls.json` |
+| `GET /api/calls`, `GET /api/calls/{id}` | call history newest first, one full record; from `proxy_core.calls`, seeds in `data/calls` |
 | `POST /api/talk` | `{room, url, token}`: a private room with the first persona in `config.yaml`, metadata `{"mode": "owner"}` |
 | `GET /api/rooms` | `{dial_in, rooms: [{room, people}]}`, newest first; phone rooms start with `call-` |
 | `GET /api/rooms/{room}` | the shape of `web/mock-state.json` |
