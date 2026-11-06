@@ -38,6 +38,11 @@
   #offline p{margin:0 0 10px;font-size:20px}
   #offline code{display:block;padding:10px 14px;background:#1A1423;color:#FFF8E7;font:clamp(17px,2.2vw,26px) Consolas,monospace;overflow-wrap:anywhere}
 
+  #hangup{margin:16px 0 0;padding:18px 22px;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;background:var(--radio);color:#fff}
+  #hangup h2{font-size:clamp(48px,8vw,96px);margin:0 0 8px}
+  #hangup p{margin:0 0 14px;font-size:clamp(22px,2.8vw,34px);font-weight:700}
+  #hangup .cta{background:var(--balloon);color:#1A1423}
+
   /* The stage: read from the back of the room */
   #stage{margin-top:20px;border:3px solid var(--ink);box-shadow:var(--shadow);padding:18px 22px}
   .caller{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
@@ -88,6 +93,11 @@
     <p>Goose is not running. Start the worker in a terminal, then open a new room.</p>
     <code>uv run python -m app.worker dev</code>
   </div>
+  <div id="hangup" role="alert" hidden>
+    <h2 class="shout" id="hangName"></h2>
+    <p id="hangWhy"></p>
+    <a class="cta" id="hangLink" hidden>See this call's record</a>
+  </div>
   <div id="stage" hidden>
     <div class="caller"><span class="shout" id="who">Waiting for a caller</span><span id="tier" hidden></span></div>
     <p id="talking"></p>
@@ -108,7 +118,7 @@ const room = decodeURIComponent(location.pathname.split('/').pop());
 const owner = new URLSearchParams(location.search).get('owner') || 'pranav';
 const opened = Date.now();
 let health = {}, live = null, notice = null;   // a join problem stays up past the next poll
-let joined = null, owners = new Set(), speaking = null, ended = false, record = null;
+let joined = null, owners = new Set(), speaking = null, ended = false, record = null, hungUp = null, lastAgents = {};
 const jobs = new Set();   // a call record's id is its agent's job id, and the agent's identity is agent-<job id>
 
 $('name').textContent = `Room ${room}`;
@@ -159,6 +169,7 @@ function render(s) {
   const agents = s.participants.filter(p => p.kind === 'agent');
   agents.forEach(p => jobs.add(p.identity.replace(/^agent-/, '')));
   if (s.ended) ended = true;
+  if (Object.keys(s.agents).length) lastAgents = s.agents;
   const offline = health.agent === 'offline' && !agents.length && !ended && Date.now() - opened > 4000;
   $('offline').hidden = !offline;
   $('stage').hidden = offline;
@@ -183,8 +194,21 @@ async function showEnded() {
   if (!record) for (const id of jobs) {
     if ((await fetch(`/api/calls/${encodeURIComponent(id)}`).catch(() => ({}))).ok) { record = id; break; }
   }
+  if (hungUp) return showHangUp();
   say(record ? 'Call ended.' : jobs.size ? 'Call ended. Saving the record.' : 'Call ended.', 'ok',
     record ? `<a href="/app#/call/${encodeURIComponent(record)}">See this call's record</a>` : '');
+}
+
+async function showHangUp() {
+  const a = Object.values(lastAgents)[0];
+  const said = (a?.log || []).filter(l => l.startsWith('end: ')).pop()?.slice(5);
+  const rec = record ? await fetch(`/api/calls/${encodeURIComponent(record)}`).then(r => r.json()).catch(() => null) : null;
+  say('');
+  $('hangup').hidden = false;
+  $('hangName').textContent = `${cap(a?.persona) || 'Goose'} hung up`;
+  $('hangWhy').textContent = hungUp.why || said || rec?.summary || '';
+  $('hangLink').hidden = !record;
+  if (record) $('hangLink').href = `/app#/call/${encodeURIComponent(record)}`;
 }
 
 async function poll() {
@@ -228,14 +252,19 @@ function left() {
 
 function mockJoin() {   // GOOSE_MOCK: the same view, scripted, no room
   const me = joined.name?.split(' ')[0] || 'Caller';
-  const script = [['Goose', true, joined.name ? `Hi ${me}, Goose here. What can I do for you?` : "Hi, this is Goose, Pranav's assistant. Who's calling?"],
+  const script = owner === 'skyler' ? [['Jesse', true, "Yo. This is how I talk, man. Who's this?"], [me, false, 'Put Skyler on the phone right now!'],
+    ['Jesse', true, "I'm not here to get yelled at. Tell me what you need or we're done."], [me, false, "You're useless, you idiot!"],
+    ['Jesse', true, "Yeah, we're done. Later."], [null, false, '']] : [['Goose', true, joined.name ? `Hi ${me}, Goose here. What can I do for you?` : "Hi, this is Goose, Pranav's assistant. Who's calling?"],
     [me, false, 'Is Pranav free for dinner on Saturday?'],
     ['Goose', true, "He's free after six. Want me to pass that on to him?"], [null, false, '']];
   let i = 0;
   const t = setInterval(() => {
     const [who, goose, text] = script[i];
     speaking = who; line(i, who, goose, text);
-    if (++i === script.length) clearInterval(t);
+    if (++i === script.length) {
+      clearInterval(t);
+      if (owner === 'skyler') { hungUp = {why: 'The caller kept shouting.'}; left(); }
+    }
   }, 1400);
   return {disconnect() { clearInterval(t); left(); }};
 }
@@ -256,12 +285,15 @@ async function liveJoin(url, token) {
   lk.on(RoomEvent.TrackSubscribed, t => { if (t.kind === 'audio') document.body.append(t.attach()); });
   lk.on(RoomEvent.TrackUnsubscribed, t => t.detach().forEach(el => el.remove()));
   lk.on(RoomEvent.ActiveSpeakersChanged, list => { speaking = list[0] ? label(list[0].identity) : null; });
+  lk.on(RoomEvent.ParticipantDisconnected, p => {   // the agent left while we were still here: it hung up
+    if (p.isAgent && ![...lk.remoteParticipants.values()].some(x => x.isAgent)) { hungUp = {}; lk.disconnect(); }
+  });
   lk.on(RoomEvent.Disconnected, left);
   try {
     await lk.connect(url, token);
     await lk.localParticipant.setMicrophoneEnabled(true);
-    await lk.startAudio();
   } catch (e) { lk.off(RoomEvent.Disconnected, left); lk.disconnect(); throw e; }
+  lk.startAudio().catch(() => addEventListener('click', () => lk.startAudio(), {once: true}));   // a browser may want one click first
   return lk;
 }
 
@@ -277,7 +309,7 @@ async function join() {
     if (!r.ok) throw new Error(`the server answered ${r.status}`);
     const {url, token} = await r.json();
     live = url ? await liveJoin(url, token) : mockJoin();
-    ended = false; record = null;
+    ended = false; record = null; hungUp = null; $('hangup').hidden = true;
     btn.textContent = 'Leave';
     $('as').disabled = true;
   } catch (e) {
@@ -290,7 +322,11 @@ $('join').onclick = join;
 fetch(`/api/callers?owner=${encodeURIComponent(owner)}`).then(r => r.json()).then(list => {
   owners = new Set(list.filter(c => c.owner).map(c => c.name));
   $('as').append(...list.map(c => new Option(c.owner ? `${c.name} (owner)` : c.name, c.name)));
-}).catch(() => {});
+}).catch(() => {}).finally(() => {
+  const q = new URLSearchParams(location.search);   // the /demo buttons arrive with who to join as
+  if (q.get('as')) $('as').value = q.get('as');
+  if (q.has('join')) join();
+});
 await checkHealth();
 await poll();
 setInterval(poll, 1000);

@@ -119,8 +119,10 @@
     <p class="dial" id="dial" hidden>Anyone can call Goose on <a id="dialNum"></a></p>
   </section>
   <section class="sheet">
-    <div class="sheethead"><h2>Calls</h2><a href="#/contacts">Contacts</a><a href="#/data">My data</a><a href="/">Landing page</a></div>
+    <div class="sheethead"><h2>Calls</h2><a href="#/contacts">Contacts</a><a href="#/data">My data</a><a href="/demo">Demo</a><a href="/">Landing page</a></div>
     <div id="calls"></div>
+    <div class="sheethead" style="margin-top:34px"><h2>Calendar</h2></div>
+    <div id="cal"></div>
   </section>
 </div>
 
@@ -162,6 +164,12 @@ async function loadHome() {
       <p class="sum">${esc(c.summary)}</p></a>`).join('')
       || `<p class="quiet">No calls yet. ${me.dial_in ? `Call ${esc(me.dial_in)} and Goose will pick up.` : 'They will show up here when Goose answers one.'}</p>`;
   } catch (e) { $('calls').innerHTML = `<p class="quiet">Could not load calls: ${esc(e.message)}. Check that the server is running.</p>`; }
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = (await get('/api/data')).calendar.filter(e => e.start.slice(0, 10) >= today).sort((a, b) => a.start.localeCompare(b.start));
+    $('cal').innerHTML = rows.map(e => `<div class="row"><div class="top"><span class="who">${esc(e.title)}</span>${tierBadge(e.tier)}</div>
+      <p class="when">${esc(when(e.start))}${e.where ? `, ${esc(e.where)}` : ''}</p></div>`).join('') || '<p class="quiet">Nothing coming up.</p>';
+  } catch { $('cal').innerHTML = '<p class="quiet">Could not load the calendar.</p>'; }
   try {
     const on = (await get('/api/rooms')).rooms.find(r => r.room.startsWith('call-'));
     $('live').hidden = !on;
@@ -366,6 +374,7 @@ if (packs.length) {
     <span>${esc(p.name)}</span></label>`).join(''));
 }
 route();
+if (new URLSearchParams(location.search).has('talk')) $('talkBtn').click();   // the /demo button
 </script>
 </body>
 </html>
