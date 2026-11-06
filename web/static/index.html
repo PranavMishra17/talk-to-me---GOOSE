@@ -176,8 +176,15 @@ function choose(id){
   try{localStorage.setItem('goose-pack',id)}catch(e){}
 }
 // personalities/*.yaml are the source; the array above keeps the page alive without a backend.
-fetch('/packs',{signal:AbortSignal.timeout(1500)}).then(r=>r.ok?r.json():Promise.reject()).then(d=>{if(d.length)packs=d}).catch(()=>{}).finally(render);
-fetch('/config').then(r=>r.json()).then(c=>{if(c.phone)document.getElementById('phone').firstChild.textContent=c.phone}).catch(()=>{});
+render();
+fetch('/packs',{signal:AbortSignal.timeout(1500)}).then(r=>r.ok?r.json():Promise.reject()).then(d=>{if(d.length){packs=d;cards.replaceChildren();sel.replaceChildren();render()}}).catch(()=>{});
+fetch('/config').then(r=>r.json()).then(c=>{
+  if(c.phone)document.getElementById('phone').firstChild.textContent=c.phone;
+  const own=document.querySelector('select[name=owner]');
+  if(!c.owners?.length)return;
+  own.replaceChildren(...c.owners.map(o=>new Option(o.name,o.id)));
+  own.onchange=()=>{const o=c.owners.find(x=>x.id===own.value);if(o&&packs.some(p=>p.id===o.pack))choose(o.pack)};
+}).catch(()=>{});
 document.getElementById('roomform').onsubmit=async e=>{
   e.preventDefault();
   const f=new FormData(e.target);

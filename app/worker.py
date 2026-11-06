@@ -45,6 +45,11 @@ async def _first_human(ctx, wait_s):
         return None
 
 
+def _number(p):
+    """Caller ID: from the phone network, or from the name this server minted into a web Join as token."""
+    return p.attributes.get("sip.phoneNumber") or vault.number_for(p.attributes.get("goose.caller"))
+
+
 def _save(ctx, session, agent):
     """Written when the session closes, a caller just hanging up included. Job shutdown comes seconds later: it is the
     fallback for a session that never started."""
@@ -95,12 +100,12 @@ async def _run(ctx: JobContext, persona: str):
     session.on("function_tools_executed", lambda ev: metric({"type": "tools_done", "ts": time.time()}))
     session.on("conversation_item_added", lambda ev: getattr(ev.item, "role", "") == "assistant" and metric(
         {"type": "assistant_turn", **(getattr(ev.item, "metrics", None) or {})}))
-    human = await _first_human(ctx, 10)
-    number = human.attributes.get("sip.phoneNumber") if human else None
+    human = await _first_human(ctx, 300 if "allowed" in meta else 10)   # a room opened from the page waits for someone to join
+    number = _number(human) if human else None
     contact = vault.find_contact(number, owner)
-    if contact and contact["relationship"] == "owner" and human.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP and not meta.get("request"):
+    if contact and contact["relationship"] == "owner" and not meta.get("request"):
         return await _run_owner(ctx, session, OwnerAgent(persona, owner, pack_name, number, vault.phone_tier(contact["tier"])),
-                                rtc.ParticipantKind.PARTICIPANT_KIND_SIP, _noise(cfg))
+                                human.kind, _noise(cfg))
     agent = GooseAgent(persona, caller=number or meta.get("caller", ""), task=meta.get("task", "Take a message and coordinate."),
                        cfg=cfg, lead=meta.get("lead"), request=meta.get("request", ""),
                        voucher=(meta["requester_tier"], meta["requester_owner"]) if meta.get("request") else None, pack=pack_name)
@@ -119,7 +124,7 @@ async def _run(ctx: JobContext, persona: str):
     session.on("function_tools_executed", lambda ev: agent.publish())
 
     def caller_id(p):   # S8-06: the tier comes from the number the phone network gave us
-        number = p.attributes.get("sip.phoneNumber")
+        number = _number(p)
         if number:
             asyncio.ensure_future(agent.set_caller(number))
     ctx.room.on("participant_connected", caller_id)

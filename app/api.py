@@ -30,6 +30,10 @@ class Talk(BaseModel):
     pack: str | None = None   # None keeps the persona's own pack
 
 
+class Join(BaseModel):
+    name: str | None = None   # a contact's name; None joins as an unknown caller
+
+
 class NewRoom(BaseModel):
     owner: str
     pack: str | None = None
@@ -82,7 +86,8 @@ async def me():
 
 @app.get("/config")
 async def config():
-    return {"phone": _phone()}
+    owners = [{"id": p["owner"], "name": p["owner"].title(), "pack": p["pack"]} for p in load_config()["personas"].values()]
+    return {"phone": _phone(), "owners": owners}
 
 
 @app.get("/packs")
@@ -134,6 +139,13 @@ async def contacts():
     return [{"name": c["name"], "relationship": c.get("relationship"), "tier": c.get("tier"),
              "numbers": ["\u2022\u2022\u2022\u2022 " + "".join(d for d in n if d.isdigit())[-4:] for n in c.get("numbers", [])]}
             for c in all_contacts()]
+
+
+@app.get("/api/callers")
+async def callers():
+    """Join as: names only, the owner first."""
+    found = [{"name": c["name"], "owner": c.get("relationship") == "owner"} for c in all_contacts()]
+    return sorted(found, key=lambda c: not c["owner"])
 
 
 @app.get("/api/data")
@@ -231,15 +243,20 @@ async def room_page(name: str):
 
 
 @app.post("/rooms/{name}/token")
-async def room_token(name: str):
+async def room_token(name: str, body: Join = Join()):
     """Only rooms opened from the page: no login here, so a `call-*` or `talk-*` room must not be joinable by name."""
     if MOCK:
         return {"url": "", "token": "mock"}
     if not name.startswith("goose-"):
         raise HTTPException(403, "this room cannot be joined from the browser")
-    who = f"guest-{os.urandom(2).hex()}"
+    if body.name and body.name not in [c["name"] for c in all_contacts()]:
+        raise HTTPException(400, "not in the contact book")
+    # The token reaches the browser, so it names the contact and the worker looks the number up. Participants cannot
+    # change their own attributes, so only this server can make someone a contact.
+    who = f"{(body.name or 'guest').split()[0].lower()}-{os.urandom(2).hex()}"
     jwt = api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]) \
-        .with_identity(who).with_name("Guest").with_grants(api.VideoGrants(room_join=True, room=name)).to_jwt()
+        .with_identity(who).with_name(body.name or "Guest").with_grants(api.VideoGrants(room_join=True, room=name)) \
+        .with_attributes({"goose.caller": body.name} if body.name else {}).to_jwt()
     return {"url": os.environ["LIVEKIT_URL"], "token": jwt}
 
 

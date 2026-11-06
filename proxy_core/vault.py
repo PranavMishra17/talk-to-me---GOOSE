@@ -91,6 +91,12 @@ def contacts(dir=DATA) -> list[dict]:
     return list({c["name"]: c for c in _load("contacts", dir) + _local(dir)}.values())
 
 
+def number_for(name: str | None, dir=DATA) -> str | None:
+    """The web Join as names a contact. The number stays on the server: an attribute would reach every browser in the room."""
+    c = next((c for c in contacts(dir) if c["name"] == name), None)
+    return c["numbers"][0] if c and c.get("numbers") else None
+
+
 def find_contact(number: str, owner: str = OWNER, dir=DATA) -> dict | None:
     """Only a number from caller ID finds a contact. A name the caller says never reaches this."""
     digits = _digits(number or "")
