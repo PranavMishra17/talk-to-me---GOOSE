@@ -41,7 +41,7 @@
 <p>Pranav's run sheet. Do section 1, then the mock pass, then one real pass. Ticks stay in this browser. <span id="count"></span></p>
 
 <div class="box warn">
-  <b>LiveKit is rate limiting us.</b> At 5:45 PM it answered 429 Too Many Requests for speech in both directions, and Goose stayed silent for the whole call. Stop every other test and harness before section 4 and before the demo. The mock pass in section 3 costs nothing, so repeat it as often as you like. Run section 4 once, in order, and don't repeat a step that passed.
+  <b>Hold section 4.</b> LiveKit's credit quota is exhausted (429 MaxGatewayCredits), so Goose can't speak or listen right now. The mock pass in section 3 still works and costs nothing. Wait until you're told the fix is in, then run section 4 once, in order, with every other test stopped.
 </div>
 
 <h2>1. Blocked on you</h2>
@@ -124,7 +124,7 @@
 <table>
   <tr><th>You see</th><th>Do this</th></tr>
   <tr><td>"Agent offline"</td><td>The worker isn't running. Run the command shown and open a new room; a room opened while it was off stays empty. Rooms for Rohan need the Maya terminal.</td></tr>
-  <tr><td>Goose says nothing, and "Goose is listening" stays up</td><td>Look in the worker terminal for <code>429 Too Many Requests</code>. That's the LiveKit limit, not a code fault. Stop everything else using the project, wait a minute, open a new room. Check limits at cloud.livekit.io.</td></tr>
+  <tr><td>Goose says nothing, and "Goose is listening" stays up</td><td>Look in the worker terminal for <code>429 Too Many Requests</code>. That's the LiveKit quota, not a code fault, and waiting a minute won't clear it. Check credits at cloud.livekit.io.</td></tr>
   <tr><td>"Can't reach the room"</td><td>The room has closed or never existed. Open a new one.</td></tr>
   <tr><td>"Backend not running: POST /rooms"</td><td>uvicorn is down or crashed. Check its terminal. An owner or personality the server doesn't know also shows this.</td></tr>
   <tr><td>"Allow the microphone"</td><td>Click the icon at the left of Chrome's address bar, allow the mic, join again.</td></tr>
