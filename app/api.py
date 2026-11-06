@@ -26,13 +26,20 @@ app = FastAPI(title="Goose")
 LAST: dict[str, dict] = {}   # the panel keeps a finished call's summary after LiveKit closes the room
 
 
+def _input(mode: str | None) -> dict:
+    """The worker reads this to keep the silence nudges off while someone waits to press hold to talk."""
+    return {"goose.input": mode} if mode in ("hold", "type", "open") else {}
+
+
 class Talk(BaseModel):
     pack: str | None = None   # None keeps the persona's own pack
+    input: str | None = None  # hold, type or open
 
 
 class Join(BaseModel):
     name: str | None = None   # a contact's name; None joins as an unknown caller
     owner: str = OWNER        # whose contact book the name is in
+    input: str | None = None  # hold, type or open
 
 
 class NewRoom(BaseModel):
@@ -179,7 +186,7 @@ async def talk(body: Talk = Talk()):
         await lk.aclose()
     jwt = api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]) \
         .with_identity(owner).with_name(owner.title()) \
-        .with_grants(api.VideoGrants(room_join=True, room=name)).to_jwt()
+        .with_grants(api.VideoGrants(room_join=True, room=name)).with_attributes(_input(body.input)).to_jwt()
     return {"room": name, "url": os.environ["LIVEKIT_URL"], "token": jwt}
 
 
@@ -270,7 +277,7 @@ async def room_token(name: str, body: Join = Join()):
     who = f"{(body.name or 'guest').split()[0].lower()}-{os.urandom(2).hex()}"
     jwt = api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]) \
         .with_identity(who).with_name(body.name or "Guest").with_grants(api.VideoGrants(room_join=True, room=name)) \
-        .with_attributes({"goose.caller": body.name} if body.name else {}).to_jwt()
+        .with_attributes({**({"goose.caller": body.name} if body.name else {}), **_input(body.input)}).to_jwt()
     return {"url": os.environ["LIVEKIT_URL"], "token": jwt}
 
 

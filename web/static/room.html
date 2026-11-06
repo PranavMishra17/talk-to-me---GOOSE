@@ -108,7 +108,7 @@
   <div class="grid" id="grid"></div>
 </main>
 <script type="module">
-import {audioGate, inputBar, liveInput} from '/talkmode.js';
+import {audioGate, inputBar, liveInput, savedMode} from '/talkmode.js';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const cap = s => String(s ?? '').replace(/^human:/, '').replace(/^./, c => c.toUpperCase());
@@ -311,7 +311,7 @@ async function join() {
   try {
     joined = {name: $('as').value || null};
     const r = await fetch(`/rooms/${encodeURIComponent(room)}/token`, {method: 'POST', headers: {'content-type': 'application/json'},
-      body: JSON.stringify({name: joined.name, owner})});
+      body: JSON.stringify({name: joined.name, owner, input: savedMode()})});
     if (!r.ok) throw new Error(`the server answered ${r.status}`);
     const {url, token} = await r.json();
     live = url ? await liveJoin(url, token) : mockJoin();

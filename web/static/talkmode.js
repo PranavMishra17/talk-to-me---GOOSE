@@ -27,7 +27,7 @@ const CSS = `
   @media (prefers-reduced-motion: reduce){.gi-hold{transition:none}}
 `;
 
-function savedMode() {
+export function savedMode() {
   try { const m = localStorage.getItem(KEY); return MODES.some(([id]) => id === m) ? m : 'hold'; } catch { return 'hold'; }
 }
 
