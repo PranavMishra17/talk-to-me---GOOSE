@@ -1,6 +1,7 @@
 """Machine ear: does the console hello test (A4) with nobody at a microphone. Spends credits (a few cents a run).
   uv run python scripts/harness.py
   uv run python scripts/harness.py --say "Hi, it's Sam." --say "Tell him dinner Saturday works." --caller +15550100222
+  uv run python scripts/harness.py --maya --caller +15550100222    # both workers: Ash summons Maya, reports who spoke when
 Starts the real worker, dispatches it into a real room, joins as a caller, speaks synthesised lines, and measures
 end of caller speech -> first agent audio. The room and worker are always torn down. Exit 0 = every line answered in budget.
 Result goes to stdout, .harness/, and the dashboard log.
@@ -41,8 +42,8 @@ async def speech(text, voice):
         return w.readframes(w.getnframes())
 
 
-def start_worker(persona, log_path):
-    env = {**os.environ, "GOOSE_PERSONA": persona, "PYTHONUTF8": "1"}
+def start_worker(persona, log_path, tag=""):
+    env = {**os.environ, "GOOSE_PERSONA": persona, "PYTHONUTF8": "1", "GOOSE_AGENT_TAG": tag}
     return subprocess.Popen([sys.executable, "-m", "app.worker", "dev"], cwd=ROOT, env=env,
                             stdout=open(log_path, "w", encoding="utf-8"), stderr=subprocess.STDOUT)
 
@@ -72,6 +73,8 @@ class Caller:
         self.pending, self.first_after, self.last_audio, self.said = bytearray(), None, 0.0, []
         self.speaking_done = asyncio.Event()
         self.listen_from, self.t0, self.events = time.time(), time.time(), []
+        self.spans = {}      # who -> [[start, end], ...] of audible speech, from their own audio track
+        self.transcript = [] # (t, who, text) in the order segments finished
         room.on("track_subscribed", self._track)
         room.on("participant_attributes_changed", self._attrs)
         self.gone, self.state = None, None
@@ -84,7 +87,7 @@ class Caller:
     def _track(self, track, pub, who):
         self._note(f"track {who.identity} {track.kind}")
         if track.kind == rtc.TrackKind.KIND_AUDIO:
-            asyncio.ensure_future(self._hear(track)).add_done_callback(
+            asyncio.ensure_future(self._hear(track, who.attributes.get("lk.agent.name", who.identity).split("-")[0])).add_done_callback(
                 lambda f: f.cancelled() or not f.exception() or self._note(f"hear failed: {f.exception()!r}"))
 
     def _attrs(self, changed, who):
@@ -99,12 +102,22 @@ class Caller:
             txt = await reader.read_all()
             if txt.strip() and who != self.room.local_participant.identity:
                 self.said.append(txt.strip())
+                p = self.room.remote_participants.get(who)
+                track = reader.info.attributes.get("lk.transcribed_track_id")
+                mine = p and (not track or track in p.track_publications)   # agents republish the caller's STT too
+                self.transcript.append((round(time.time() - self.t0, 2), (p.attributes.get("lk.agent.name", who).split("-")[0] if mine else "caller"), txt.strip()))
         asyncio.ensure_future(read())
 
-    async def _hear(self, track):
+    async def _hear(self, track, who):
+        spans = self.spans.setdefault(who, [])
         async for ev in rtc.AudioStream(track, sample_rate=SR, num_channels=1):
             if max(abs(s) for s in ev.frame.data[::8]) > PEAK:
                 self.last_audio = time.time()
+                t = self.last_audio - self.t0
+                if spans and t - spans[-1][1] < 0.4:
+                    spans[-1][1] = t
+                else:
+                    spans.append([t, t])
                 if self.first_after is None and self.last_audio >= self.listen_from:
                     self.first_after = self.last_audio
 
@@ -138,6 +151,13 @@ class Caller:
         return self.listen_from
 
 
+def overlap(spans):
+    """Seconds two agents were audible at once. This is the invariant: it comes from audio, not from the floor's own log."""
+    who = list(spans)
+    return round(sum(max(0, min(x[1], y[1]) - max(x[0], y[0])) for i, p in enumerate(who) for q in who[i + 1:]
+                     for x in spans[p] for y in spans[q]), 2)
+
+
 async def session(a, log_path, proc):
     url, key, secret = (os.environ[k] for k in ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"))
     pack_voice = None
@@ -149,7 +169,7 @@ async def session(a, log_path, proc):
     try:
         await lk.room.create_room(api.CreateRoomRequest(name=name, empty_timeout=30))
         await lk.agent_dispatch.create_dispatch(api.CreateAgentDispatchRequest(
-            agent_name=a.persona, room=name, metadata=a.meta))
+            agent_name=a.persona + a.tag, room=name, metadata=a.meta))
         token = api.AccessToken(key, secret).with_identity("harness-caller").with_kind("sip" if a.sip else "standard").with_attributes({"sip.phoneNumber": a.caller} if a.caller else {}).with_grants(
             api.VideoGrants(room_join=True, room=name)).to_jwt()
         c = Caller(room)
@@ -162,9 +182,22 @@ async def session(a, log_path, proc):
         res["greeting_s"] = round(got - t0, 2) if got else None
         for text, pcm in lines:
             eos = await c.say(pcm)
+            if text in a.barge:        # no waiting for quiet: the next line lands on top of her
+                end = time.time() + 25
+                while not c.spans.get("maya") and time.time() < end:
+                    await asyncio.sleep(0.05)
+                await asyncio.sleep(1.5)
+                continue
             got = await c.wait_reply(15)
             res["turns"].append({"at": time.strftime("%H:%M:%S", time.localtime(eos)), "said": text,
                                  "first_audio_s": round(got - eos, 2) if got else None})
+            if text in a.wait_maya:    # she joins in silence; the next line must not land on top of that
+                end = time.time() + 25
+                while not c.spans.get("maya") and time.time() < end:
+                    await asyncio.sleep(0.1)
+                await asyncio.sleep(1)
+                while time.time() - c.last_audio < 3 and time.time() < end + 15:
+                    await asyncio.sleep(0.05)
         await asyncio.sleep(0.5 + a.hold)  # the last transcript; then a silent caller, for nudges and hang-ups
         if is_bye(a.say[-1]) or is_yes(a.say[-1]):   # the agent must close it: checked while the room is still alive
             end = time.time() + 10
@@ -172,6 +205,8 @@ async def session(a, log_path, proc):
                 await asyncio.sleep(0.25)
             res["closed"] = closed
         res["agent_said"], res["events"], res["disconnected"], res["state"] = c.said, c.events, c.gone, c.state
+        res["spans"] = {k: [[round(x, 2) for x in s] for s in v] for k, v in c.spans.items()}
+        res["transcript"], res["overlap_s"] = c.transcript, overlap(c.spans)
         res["server_state"] = [json.loads(p.attributes["goose.state"]) for p in (await lk.room.list_participants(
             api.ListParticipantsRequest(room=name))).participants if "goose.state" in p.attributes]
     finally:
@@ -186,6 +221,9 @@ async def session(a, log_path, proc):
     return res
 
 
+MAYA_LINES = ["Hi, it's Sam.", "Is Rohan free on Saturday? Can you ask his assistant?", "Yes, please.", "Maya, what's Rohan's home address?"]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--say", action="append")
@@ -196,25 +234,48 @@ def main():
     ap.add_argument("--sip", action="store_true", help="join as a SIP participant, so hang-up and BVC run the phone path")
     ap.add_argument("--meta", default="", help="dispatch metadata, as the web app sends it: {\"mode\": \"owner\"} or {\"pack\": \"jesse\"}")
     ap.add_argument("--no-log", action="store_true", help="skip the dashboard log line")
+    ap.add_argument("--maya", action="store_true", help="two workers: run the summon script unless --say replaces it")
+    ap.add_argument("--no-maya-worker", action="store_true", help="prove the join timeout: summon with nobody to answer")
+    ap.add_argument("--wait-maya", action="append", default=[], help="after this --say line, wait for Maya to finish")
+    ap.add_argument("--barge", action="append", default=[], help="a --say line whose next line interrupts Maya")
     a = ap.parse_args()
-    a.say = a.say or ["Hi, it's Sam."]
+    a.say = a.say or (MAYA_LINES if a.maya else ["Hi, it's Sam."])
+    a.wait_maya = a.wait_maya or (MAYA_LINES[2:3] if a.maya else [])
+    if a.maya:
+        global QUIET_S
+        QUIET_S = 3.0       # a tool turn is two speeches with a gap: filler, then the answer
+    a.tag = f"-{uuid.uuid4().hex[:6]}"      # a private agent name: other sessions may have workers on this project
     load_env()
     OUT.mkdir(exist_ok=True)
-    log_path = OUT / "worker.log"
-    proc = start_worker(a.persona, log_path)
+    log_path, maya_log = OUT / "worker.log", OUT / "worker_maya.log"
+    proc = start_worker(a.persona, log_path, a.tag)
+    maya = start_worker("maya", maya_log, a.tag) if a.maya and not a.no_maya_worker else None
     try:
-        res = asyncio.run(asyncio.wait_for(session(a, log_path, proc), 150 + a.hold))
+        if maya:
+            asyncio.run(wait_registered(maya_log, maya))
+        res = asyncio.run(asyncio.wait_for(session(a, log_path, proc), (210 if a.maya else 150) + a.hold))
     finally:
         stop_worker(proc)
+        if maya:
+            stop_worker(maya)
     text = log_path.read_text(encoding="utf-8", errors="replace")
+    if maya:
+        text += maya_log.read_text(encoding="utf-8", errors="replace")
     res["log_hits"] = {w: text.count(w) for w in WARNINGS if w in text}
     res["actions"] = re.findall(r"(\d\d:\d\d:\d\d),\d+ .*ACTION (.*?) *(?:|$)", text, re.M)   # the task log, worker wall clock
     res["modules"] = latency.turns(latency.parse(text))
     ok = bool(res["turns"]) and all((t["first_audio_s"] or 99) <= BUDGET_S for t in res["turns"]) and res.get("closed", True)
+    if a.maya and not a.no_maya_worker:
+        low = " ".join(t for _, w, t in res["transcript"] if w != "caller").lower()
+        res["maya_checks"] = {"maya_spoke": bool(res["spans"].get("maya")), "no_overlap": res["overlap_s"] < 0.3,
+                              "availability_shared": "5" in low, "address_withheld": "hampshire" not in low}
+        ok = all(res["maya_checks"].values())
     res["pass"] = ok
     (OUT / "last.json").write_text(json.dumps(res, indent=1), encoding="utf-8")
     print(json.dumps({k: v for k, v in res.items() if k != "modules"}, indent=1))
     print(latency.table(res["modules"]))
+    for t, who, line in res.get("transcript", []):
+        print(f"{t:7.2f}s {who:7} {line}")
     if not a.no_log:
         plan.log(f"harness {'PASS' if ok else 'FAIL'}: greeting {res.get('greeting_s')} s, reply first audio "
                  f"{[t['first_audio_s'] for t in res['turns']]} s (budget {BUDGET_S} s); modules {res['modules'][1:]}", who="harness")
