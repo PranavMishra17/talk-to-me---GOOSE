@@ -50,9 +50,7 @@
   <li><input type="checkbox"><div><b>Add the phone number.</b> Put <code>GOOSE_PHONE_NUMBER=+1...</code> in the main folder's <code>.env</code> and restart uvicorn. It isn't set today, so the landing page shows <code>+1 (xxx) xxx-xxxx</code> and <code>/app</code> hides the number. Never commit it: the repo is public.
     <span class="expect"><b>Done when:</b> the number shows on the landing page under Call Goose.</span></div></li>
   <li><input type="checkbox"><div><b>Test a real mic.</b> Section 4 is the only place this gets proved. Claude's browser blocks mics, so every test so far used a silent fake one. Goose has never heard anyone through the web app.</div></li>
-  <li><input type="checkbox"><div><b>Decide: fictional names in the prompts.</b> The stranger lines on the cards are also the examples the model copies. Jesse's say "Skyler" and "the car wash", and Jarvis's say "Mr. Sharma", so the model may repeat them on a live call. Keep them, or change them in <code>personalities/jesse.yaml</code> and <code>personalities/jarvis.yaml</code>, which updates both page and prompt.</div></li>
-  <li><input type="checkbox"><div><b>Decide: the landing page's room copy.</b> It says "Anyone with the link can join from a browser alongside the phone caller", and the room page says "Dial the number or join from this browser". A phone call lands in its own <code>call-*</code> room, so the phone and browser don't meet. Drop that promise, or ask for the rooms to be joined up.</div></li>
-  <li><input type="checkbox"><div><b>Decide: stage network.</b> There is no login, so anyone who can reach the server can join a room as you or any contact. Run it on localhost only. Don't bind it to a shared network or tunnel it.</div></li>
+  <li><input type="checkbox"><div><b>Run it on localhost only.</b> There is no login, so anyone who can reach the server can join a room as you or any contact. Keep uvicorn on its default address, and don't pass <code>--host 0.0.0.0</code> or tunnel it. Project your own laptop's screen.</div></li>
   <li><input type="checkbox"><div><b>Decide: does Jesse for Skyler need caller ID?</b> Skyler isn't in <code>config.yaml</code> yet (goose-single-2 is adding it). The form will list her with no more changes. But contacts only exist for Pranav, so everyone in a Skyler room joins as an unknown caller.</div></li>
 </ol>
 
@@ -77,7 +75,13 @@
   <li><input type="checkbox"><div><b>Change "Who is the assistant for?" to Rohan.</b>
     <span class="expect"><b>Expect:</b> the stand-in jumps to Jarvis. Back to Pranav and it jumps to Goose.</span></div></li>
   <li><input type="checkbox"><div><b>Press Start the call.</b>
-    <span class="expect"><b>Expect:</b> room page with fake people, floor, agenda, slots and task log. "Join as" lists Unknown caller plus the contacts, names only. Join from browser says it is mock mode.</span></div></li>
+    <span class="expect"><b>Expect:</b> room page with a large "Waiting for a yes" bar, then fake people, floor, agenda, slots and task log. "Join as" lists Unknown caller plus the contacts, names only.</span></div></li>
+  <li><input type="checkbox"><div><b>Join as Sam Okafor. Stand back from the screen.</b>
+    <span class="expect"><b>Expect:</b> "Sam Okafor" and a "Friends tier" badge in big type, a scripted transcript with each speaker named, and a "… is talking" line that follows it. All of it should read from the back of a room.</span></div></li>
+  <li><input type="checkbox"><div><b>Press Leave.</b>
+    <span class="expect"><b>Expect:</b> "Call ended." with "See this call's record", which opens that call in the app.</span></div></li>
+  <li><input type="checkbox"><div><b>Open <a href="http://localhost:8000/rooms/mock-offline">/rooms/mock-offline</a> and wait 5 seconds.</b>
+    <span class="expect"><b>Expect:</b> a big red "Agent offline" with the start command.</span></div></li>
   <li><input type="checkbox"><div><b>Click Pranav's app, top right.</b>
     <span class="expect"><b>Expect:</b> "Hi Pranav, how are you?", the egg, personality chips, the red "Goose is on a call right now" banner, and call history.</span></div></li>
   <li><input type="checkbox"><div><b>Click the banner.</b>
@@ -94,9 +98,9 @@
 <p>Use the real commands. Have your mic ready and allow it when Chrome asks. Open each room from <a href="http://localhost:8000/#room">Open a room</a>; it closes after 5 empty minutes.</p>
 <ol class="steps">
   <li><input type="checkbox"><div><b>4.1 Open a room for Pranav with Goose. Wait 20 seconds, join as Muhammad Rahman, say something.</b>
-    <span class="expect"><b>Expect:</b> "Hi Muhammad, Goose here. What can I do for you?", with no "who's calling". You hear Goose. <b>New proof:</b> Goose answers what you actually said. Press Leave.</span></div></li>
+    <span class="expect"><b>Expect:</b> "Hi Muhammad, Goose here. What can I do for you?", with no "who's calling". You hear Goose. Your name and Friends tier show large, and your own words appear in the transcript. <b>New proof:</b> Goose answers what you actually said. Press Leave and follow the record link.</span></div></li>
   <li><input type="checkbox"><div><b>4.2 New room, join as Unknown caller.</b>
-    <span class="expect"><b>Expect:</b> "Hi, this is Goose, Pranav's assistant. Who's calling?" Say a name and that the name appears under Slots. Leave.</span></div></li>
+    <span class="expect"><b>Expect:</b> "Hi, this is Goose, Pranav's assistant. Who's calling?" Say a name: the screen shows it as "not verified" at Public tier. Leave.</span></div></li>
   <li><input type="checkbox"><div><b>4.3 New room, join as Sam Okafor. Ask "What's going on with Mum's flight?"</b>
     <span class="expect"><b>Expect:</b> Goose won't share it. Sam is friends tier and that email is family tier. <b>Not tested yet.</b></span></div></li>
   <li><input type="checkbox"><div><b>4.4 New room, join as Rohan Mishra. Ask the same thing.</b>
@@ -116,7 +120,7 @@
 <h2>5. If something breaks</h2>
 <table>
   <tr><th>You see</th><th>Do this</th></tr>
-  <tr><td>"Agent offline"</td><td>The worker isn't running. Start it and open a new room; a room opened while it was off stays empty.</td></tr>
+  <tr><td>"Agent offline"</td><td>The worker isn't running. Run the command shown and open a new room; a room opened while it was off stays empty. Rooms for Rohan need the Maya terminal.</td></tr>
   <tr><td>"Can't reach the room"</td><td>The room has closed or never existed. Open a new one.</td></tr>
   <tr><td>"Backend not running: POST /rooms"</td><td>uvicorn is down or crashed. Check its terminal. An owner or personality the server doesn't know also shows this.</td></tr>
   <tr><td>"Allow the microphone"</td><td>Click the icon at the left of Chrome's address bar, allow the mic, join again.</td></tr>
@@ -128,7 +132,7 @@
 <details>
   <summary>What Claude has already proved, and what it hasn't</summary>
   <h3>Proved with a real agent and a silent fake mic</h3>
-  <p>Form to room to agent, Join and Leave, Muhammad greeted by name after a 15 second wait, Unknown asked, owner briefing using a fake owner contact, TARS and Jarvis packs recorded on real calls, no numbers in tokens or on the page, and the empty, offline and error states.</p>
+  <p>Form to room to agent, Join and Leave, Muhammad greeted by name after a 15 second wait, Unknown asked, owner briefing using a fake owner contact, TARS and Jarvis packs recorded on real calls, no numbers in tokens or on the page, the empty, offline and error states, and the stage view with a link to the call's record.</p>
   <h3>Not proved</h3>
   <p>Anything that needs a real voice: Goose hearing speech, your side of the live transcript, tier refusals out loud, and a spoken summon. Also audio you can actually hear, phone calls reaching the web app, your real owner contact, and Jesse for Skyler.</p>
 </details>

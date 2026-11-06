@@ -62,10 +62,10 @@ def live_state(name: str, floor_json: str, people: list) -> dict:
     for p in people:
         attrs = dict(p.attributes)
         is_agent = p.kind == AGENT_KIND
-        participants.append({"identity": p.identity, "kind": "agent" if is_agent else "human",
+        s = json.loads(attrs["goose.state"]) if is_agent and attrs.get("goose.state") else None
+        participants.append({"identity": p.identity, "kind": "agent" if is_agent else "human", "persona": s and s["persona"],
                              "agent_state": attrs.get("lk.agent.state")})
-        if is_agent and attrs.get("goose.state"):
-            s = json.loads(attrs["goose.state"])
+        if s:
             agents[s["persona"]] = s
     floor = json.loads(floor_json) if floor_json else {}
     return {"room": name, "participants": participants, "agents": agents,
@@ -100,7 +100,7 @@ async def health(room: str | None = None):
     """LiveKit lists no workers. An agent in a room is proof, and for a named room so is a job a worker took:
     a dispatch nobody can serve has no jobs. With no room and no agent on a call, nothing can be said."""
     if MOCK:
-        return {"livekit": "ok", "agent": "online"}
+        return {"livekit": "ok", "agent": "offline" if room == "mock-offline" else "online"}
     lk = None
     try:
         lk = _lk()
@@ -194,6 +194,8 @@ async def rooms():
 @app.get("/api/rooms/{name}")
 async def room_state(name: str):
     if MOCK:
+        if name == "mock-offline":
+            return {"room": name, "participants": [], "agents": {}, "floor": {"holder": None, "addressed_to": None}}
         return {**json.loads(MOCK_FILE.read_text(encoding="utf-8")), "room": name}
     lk = _lk()
     try:
@@ -204,7 +206,7 @@ async def room_state(name: str):
             people = None
         if people is None:
             if name in LAST:
-                return LAST[name]
+                return {**LAST[name], "ended": True}
             raise HTTPException(404, "no such room")
     finally:
         await lk.aclose()
