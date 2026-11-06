@@ -117,11 +117,8 @@ class GooseAgent(DataTools, Agent):
         now = datetime.now().astimezone()
         today = f"{now:%A}, {now:%B} {now.day}, {now.year}, {spoken_time(now.hour, now.minute)}"
         return PROMPT.format(now=today, assistant=self.persona.title(), owner=self.owner.title(), caller_tier=self.caller_tier,
-                             style="
-".join([render_style(self.pack), *self.pack.get("rules", [])]), agenda=self.agenda.render_prompt_block()) +             ("
-
-# OTHER ASSISTANTS
-" + ", ".join(peers) + "." + network if peers else "") + self._known
+                             style="\n".join([render_style(self.pack), *self.pack.get("rules", [])]), agenda=self.agenda.render_prompt_block()) + \
+            ("\n\n# OTHER ASSISTANTS\n" + ", ".join(peers) + "." + network if peers else "") + self._known
 
     def _peers(self):
         """Personas on this one's network. No network, no peers: their owners do not exist on this call."""
