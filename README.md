@@ -13,3 +13,21 @@ uv run python tests/bench.py             # six session.run scenarios (spends LLM
 uv run python -m app.worker dev          # register Ash with Cloud
 uv run python -m app.worker console      # talk to Ash locally (credits; Ctrl+C when done)
 ```
+
+## Frontend
+
+No keys needed. This serves the page with fake data from `web/mock-state.json`:
+
+```bash
+GOOSE_MOCK=1 uv run uvicorn app.api:app --port 8000     # PowerShell: $env:GOOSE_MOCK=1; uv run uvicorn app.api:app --port 8000
+```
+
+Open http://localhost:8000 and press New call. Change only `web/`. The API is three calls:
+
+| Call | Returns |
+|---|---|
+| `POST /api/rooms` | `{room}` |
+| `GET /api/rooms/{room}` | the shape of `web/mock-state.json`; poll every second |
+| `POST /api/rooms/{room}/token` with `{identity}` | `{url, token}` for LiveKit JS |
+
+Need a new field? Add it to `web/mock-state.json` and tell Pranav, so the worker publishes it.

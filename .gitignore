@@ -8,3 +8,5 @@ HANDOFF.html
 PORT.html
 SETUP.html
 .env.example
+.claude/
+.harness-lock/

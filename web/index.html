@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Goose</title>
+<style>
+  body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:0 auto;padding:16px;background:#fff;color:#1b1b1b}
+  header{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  h1{font-size:20px;margin:0 auto 0 0}
+  main{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:12px}
+  section{border:1px solid #ddd;border-radius:8px;padding:12px}
+  h2{font-size:14px;margin:0 0 6px}
+  ul{margin:0;padding-left:18px}
+  .done{color:#777;text-decoration:line-through}
+  input,button{font:inherit;padding:6px 10px}
+</style>
+</head>
+<body>
+<!-- Teammates: restyle freely. The data comes only from the three fetch calls below. Shape: web/mock-state.json -->
+<header>
+  <h1>Goose</h1>
+  <input id="who" value="guest" aria-label="Your name">
+  <button id="start">New call</button>
+  <button id="join" disabled>Join with mic</button>
+</header>
+<p id="status">No room yet.</p>
+<main>
+  <section><h2>In the room</h2><ul id="people"></ul></section>
+  <section><h2>Floor</h2><p id="floor">-</p></section>
+  <div id="agents" style="display:contents"></div>
+</main>
+<script type="module">
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+let room = new URLSearchParams(location.search).get('room');
+
+function agentPanel(a) {
+  return `<section><h2>${esc(a.persona)} (for ${esc(a.owner)}, caller: ${esc(a.caller_tier)})</h2>
+    <ul>${a.agenda.map(i => `<li class="${i.done ? 'done' : ''}">${esc(i.goal)}${i.id === a.focus ? ' &larr; now' : ''}</li>`).join('')}</ul>
+    <p>Known: ${esc(Object.entries(a.slots).map(([k, v]) => `${k}=${v}`).join(', ') || 'nothing yet')}</p>
+    ${a.pending_confirm ? `<p>Waiting for a yes: ${esc(a.pending_confirm)}</p>` : ''}
+    <ul>${a.log.map(l => `<li>${esc(l)}</li>`).join('')}</ul></section>`;
+}
+
+async function poll() {
+  if (!room) return;
+  const r = await fetch(`/api/rooms/${room}`);
+  if (!r.ok) { $('status').textContent = `Room ${room}: ${r.status}`; return; }
+  const s = await r.json();
+  $('status').textContent = `Room ${s.room}`;
+  $('people').innerHTML = s.participants.map(p => `<li>${esc(p.identity)}${p.agent_state ? ` (${esc(p.agent_state)})` : ''}</li>`).join('');
+  $('floor').textContent = s.floor.holder ? `${s.floor.holder} has the floor` : 'Free';
+  $('agents').innerHTML = Object.values(s.agents).map(agentPanel).join('');
+}
+
+$('start').onclick = async () => {
+  room = (await (await fetch('/api/rooms', {method: 'POST', headers: {'content-type': 'application/json'}, body: '{}'})).json()).room;
+  $('join').disabled = false;
+  poll();
+};
+
+$('join').onclick = async () => {
+  const {url, token} = await (await fetch(`/api/rooms/${room}/token`, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({identity: $('who').value})})).json();
+  if (!url) { $('status').textContent = 'Mock mode: nothing to join.'; return; }
+  const {Room, RoomEvent} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2.15.4/+esm');
+  const lk = new Room();
+  lk.on(RoomEvent.TrackSubscribed, t => document.body.appendChild(t.attach()));
+  await lk.connect(url, token);
+  await lk.localParticipant.setMicrophoneEnabled(true);
+  $('status').textContent = `Joined ${room} as ${$('who').value}`;
+};
+
+if (room) $('join').disabled = false;
+setInterval(poll, 1000);
+poll();
+</script>
+</body>
+</html>

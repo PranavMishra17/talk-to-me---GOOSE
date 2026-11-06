@@ -1,0 +1,41 @@
+{
+  "room": "mock-room",
+  "participants": [
+    {"identity": "sam", "kind": "human", "agent_state": null},
+    {"identity": "agent-ash", "kind": "agent", "agent_state": "speaking"},
+    {"identity": "agent-maya", "kind": "agent", "agent_state": "listening"}
+  ],
+  "floor": {"holder": "ash", "addressed_to": "maya"},
+  "agents": {
+    "ash": {
+      "persona": "ash",
+      "owner": "pranav",
+      "caller_tier": "friends",
+      "focus": "learn_ask",
+      "agenda": [
+        {"id": "identify", "goal": "Learn who is calling", "done": true},
+        {"id": "learn_ask", "goal": "Understand the ask: dinner Saturday", "done": false},
+        {"id": "read_back", "goal": "Read the details back and get a yes", "done": false},
+        {"id": "close", "goal": "Wrap up and say goodbye", "done": false}
+      ],
+      "slots": {"name": "Sam", "topic": "dinner Saturday"},
+      "pending_confirm": "take_message",
+      "log": ["message from Sam: dinner Saturday works", "summon rohan"],
+      "summary": ""
+    },
+    "maya": {
+      "persona": "maya",
+      "owner": "rohan",
+      "caller_tier": "public",
+      "focus": "answer",
+      "agenda": [
+        {"id": "check_tier", "goal": "Check what this caller may hear", "done": true},
+        {"id": "answer", "goal": "Answer or decline", "done": false}
+      ],
+      "slots": {},
+      "pending_confirm": null,
+      "log": [],
+      "summary": ""
+    }
+  }
+}
