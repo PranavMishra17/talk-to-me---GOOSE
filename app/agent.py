@@ -91,7 +91,12 @@ class GooseAgent(DataTools, Agent):
             self.caller_tier = policy.resolve_tier(self.owner, number)
         if self.contact:
             name = self.contact["name"]
-            self._known = f"\n\n# WHO IS CALLING\nYou know this caller, so never ask who is calling.\n{vault.caller_context(self.contact, calls.calls_with(name))}"
+            start = time.perf_counter()
+            bundle = vault.prefetch(self.owner, self.contact, calls.calls_with(name))
+            logger.info("METRIC %s", json.dumps({"type": "prefetch", "ms": round((time.perf_counter() - start) * 1000, 1),
+                                                 "words": len(bundle.split()), "chars": len(bundle)}))
+            self._known = (f"\n\n# WHO IS CALLING\nYou know this caller, so never ask who is calling.\n"
+                           f"Answer from this context first. Call a tool only for what it does not cover.\n{bundle}")
             self.agenda.update_slots({"name": name.split()[0]})
 
     def _prompt(self):
@@ -156,6 +161,8 @@ class GooseAgent(DataTools, Agent):
 
     async def set_caller(self, number):
         """Caller ID arrives with the SIP participant, after the agent exists."""
+        if number == self.caller:          # already identified before the greeting
+            return self.publish()
         self._identify(number)
         await self.update_instructions(self._prompt())
         self.publish()

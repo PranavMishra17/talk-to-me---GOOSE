@@ -37,6 +37,8 @@ def _noise(cfg):
 
 async def _first_human(ctx, wait_s):
     """Caller ID must be known before the greeting. None = nobody came; the agent carries on as it always did."""
+    if ctx.is_fake_job():    # console: there is no room to wait in
+        return None
     try:
         return await asyncio.wait_for(ctx.wait_for_participant(), wait_s)
     except asyncio.TimeoutError:
@@ -72,6 +74,8 @@ async def _run_owner(ctx, session, agent, kind, noise=None):
 async def _run(ctx: JobContext, persona: str):
     cfg = load_config()
     meta = json.loads(ctx.job.metadata or "{}")            # job metadata is a string; carries task + caller
+    if ctx.is_fake_job():                                  # scripts/call.py: console mode has no dispatch to carry it
+        meta = json.loads(os.environ.get("GOOSE_CALL") or "{}")
     pack_name = cfg["personas"][persona]["pack"]
     if meta.get("pack") in list_packs():                   # any pack on any agent, per session. An unknown one must not drop a call.
         pack_name = meta["pack"]

@@ -1,0 +1,14 @@
+[
+ {"id": "p1", "key": "name", "value": "Pranav", "tier": "public"},
+ {"id": "p2", "key": "role", "value": "Founder of Honk Labs, a small voice software company", "tier": "public"},
+ {"id": "p3", "key": "city", "value": "Boston", "tier": "public"},
+ {"id": "p4", "key": "work", "value": "Builds voice assistants. Speaking at Boston Tech Meetup on 10 November", "tier": "public"},
+ {"id": "p5", "key": "best_time_to_reach", "value": "Weekday afternoons, after 2pm", "tier": "public"},
+ {"id": "p6", "key": "coffee", "value": "Flat white, no sugar", "tier": "friends"},
+ {"id": "p7", "key": "food", "value": "Loves oysters, can't stand cilantro", "tier": "friends"},
+ {"id": "p8", "key": "weekend_routine", "value": "Climbs at Central Rock Gym on Sundays at 10", "tier": "friends"},
+ {"id": "p9", "key": "evening_routine", "value": "Phone goes on silent after 10pm", "tier": "family"},
+ {"id": "p10", "key": "family_routine", "value": "Calls Mum every Sunday evening", "tier": "family"},
+ {"id": "p11", "key": "health", "value": "Takes a statin every morning", "tier": "private"},
+ {"id": "p12", "key": "focus", "value": "Wants Northwind signed before the end of the quarter", "tier": "private"}
+]

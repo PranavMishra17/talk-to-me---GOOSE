@@ -16,6 +16,11 @@ class DataTools:
         return json.dumps(rows, ensure_ascii=False) if rows else "Nothing found."
 
     @function_tool
+    async def get_profile(self) -> str:
+        """About the owner: role, work, preferences, routines, as far as this caller may hear."""
+        return self._rows(vault.get_profile)
+
+    @function_tool
     async def search_email(self, query: str) -> str:
         """Search the owner's email for what this caller may hear. Query is a few keywords."""
         return self._rows(vault.search_email, query)

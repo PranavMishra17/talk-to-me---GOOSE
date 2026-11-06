@@ -3,6 +3,7 @@
  {"id": "s2", "channel": "#dinner-saturday", "from": "Lena Fischer", "date": "2026-11-05T20:50:00-05:00", "text": "7 is tight for me. Can we push to 7:30?", "tier": "friends"},
  {"id": "s3", "channel": "#family", "from": "Rohan Mishra", "date": "2026-11-04T09:10:00-05:00", "text": "Mum's flight is Thursday, 4:40 at Logan, Terminal E. Pranav is on pickup unless he shouts.", "tier": "family"},
  {"id": "s4", "channel": "#climbing", "from": "Muhammad Rahman", "date": "2026-11-05T11:30:00-05:00", "text": "New routes went up at the gym. Sunday at 10, who is in?", "tier": "friends"},
- {"id": "s5", "channel": "#northwind-deal", "from": "Priya Nair", "date": "2026-11-05T16:10:00-05:00", "text": "Northwind wants 15 percent off. Pranav to decide before Monday. Do not share outside the team.", "tier": "private"},
- {"id": "s6", "channel": "#announcements", "from": "Pranav", "date": "2026-11-02T10:00:00-05:00", "text": "Speaking at Boston Tech Meetup on Tuesday, come say hi.", "tier": "public"}
+ {"id": "s5", "channel": "#northwind-deal", "from": "Priya Nair", "date": "2026-11-05T16:10:00-05:00", "text": "Northwind wants 15 percent off. Pranav to decide before Monday. Do not share outside the team.", "tier": "private", "topics": ["work"]},
+ {"id": "s6", "channel": "#announcements", "from": "Pranav", "date": "2026-11-02T10:00:00-05:00", "text": "Speaking at Boston Tech Meetup on Tuesday, come say hi.", "tier": "public", "topics": ["work"]},
+ {"id": "s7", "channel": "#northwind-deal", "from": "Priya Nair", "date": "2026-11-06T11:20:00-05:00", "text": "Legal cleared the data clause this morning. Liability cap is the last real blocker.", "tier": "friends", "topics": ["work"]}
 ]

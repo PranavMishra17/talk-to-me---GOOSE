@@ -1,7 +1,7 @@
 """Pranav's mock data, filtered by tier in code so the model never sees a record above the caller's tier. No livekit."""
 import json
 import os
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from proxy_core.config import ROOT
@@ -9,6 +9,7 @@ from proxy_core.policy import TIERS
 
 DATA = ROOT / "data"
 OWNER = "pranav"              # whose data this is; another owner's assistant reads nothing from here
+PREFETCH_WORDS = 150         # the bundle rides on every turn's prompt, so it stays short
 PHONE_MAX = "family"          # caller ID can be spoofed, so no phone call reaches private data, not even the owner's number
 
 
@@ -61,6 +62,11 @@ def get_calendar(tier: str, dir=DATA) -> list[dict]:
              if e["id"] in shown else {"busy": True})} for e in rows]
 
 
+def get_profile(tier: str, dir=DATA) -> dict:
+    """The owner himself: role, work, preferences, routines, as far as the tier allows."""
+    return {r["key"]: r["value"] for r in visible(_load("profile", dir), tier)}
+
+
 def _digits(number: str) -> str:
     return "".join(c for c in number if c.isdigit())
 
@@ -93,13 +99,32 @@ def find_contact(number: str, owner: str = OWNER, dir=DATA) -> dict | None:
     return next((c for c in contacts(dir) if digits in map(_digits, c.get("numbers", []))), None)
 
 
-def caller_context(contact: dict, past_calls: list[dict], dir=DATA) -> str:
-    """The short brief a known caller's prompt carries. past_calls are this person's own, newest first."""
+def _relevant(rows: list[dict], first: str, topics: list[str]) -> list[dict]:
+    """With or about this person, on what they share with the owner: a colleague gets work, a friend gets the rest."""
+    return [r for r in rows if first in json.dumps(r) and set(r.get("topics", ["personal"])) & set(topics)]
+
+
+def prefetch(owner: str, contact: dict, past_calls: list[dict], today: date | None = None, dir=DATA, max_words: int = PREFETCH_WORDS) -> str:
+    """What the agent knows before it says hello, so its first replies need no tool. Tier-filtered like every read."""
+    if owner != OWNER:
+        return ""
     tier, first = phone_tier(contact["tier"]), contact["name"].split()[0]
-    lines = [f"Caller: {contact['name']}, {contact['relationship']} of the owner. {contact.get('notes', '')}".strip()]
+    topics = contact.get("topics", ["personal"])
+    newest = lambda name: sorted(_relevant(visible(_load(name, dir), tier), first, topics), key=lambda r: r["date"], reverse=True)
+    today = today or datetime.now().date()
+    week = [e for e in _load("calendar", dir) if today <= date.fromisoformat(e["start"][:10]) <= today + timedelta(days=7)]
+    shown = {e["id"] for e in visible(week, tier) if set(e.get("topics", ["personal"])) & set(topics)} if tier != "public" else set()
+    lines = [f"Caller: {contact['name']}, the owner's {contact['relationship']}. {contact.get('notes', '')}".strip()]
+    lines += [f"Open task: {t['text']}, due {t['due']}." for t in _relevant(visible(_load("tasks", dir), tier), first, topics) if not t["done"]][:2]
     lines += [f"Last call {c['started_at'][:10]}: {c['summary']}" for c in past_calls[:2]]
-    mine = sorted((m for m in visible(_load("gmail", dir), tier) if first in m["from"]), key=lambda m: m["date"])
-    lines += [f"Their last email: {m['subject']}: {m['body']}" for m in mine[-1:]]
-    said = sorted((m for m in visible(_load("slack", dir), tier) if first in m["from"]), key=lambda m: m["date"])
-    lines += [f"Their last Slack: {m['text']}" for m in said[-1:]]
-    return "\n".join(lines)
+    lines += [f"Email from {m['from']}: {m['subject']}. {m['body']}" for m in newest("gmail")[:2]]
+    lines += [f"Slack {m['channel']}, {m['from']}: {m['text']}" for m in newest("slack")[:2]]
+    lines += ["This week: " + "; ".join(f"{_span(e['start'], e['end'])} {e['title'] if e['id'] in shown else 'busy'}"
+                                        for e in sorted(week, key=lambda e: e["start"])[:4])] if week else []
+    kept, words = [], 0
+    for line in lines:                  # most useful first; what does not fit stays behind the tools
+        words += len(line.split())
+        if words > max_words:
+            break
+        kept.append(line)
+    return "\n".join(kept)

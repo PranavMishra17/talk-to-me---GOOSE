@@ -1,8 +1,8 @@
 [
- {"id": "c1", "start": "2026-11-06T14:00:00-05:00", "end": "2026-11-06T15:00:00-05:00", "title": "Northwind contract review with Priya", "where": "Zoom", "with": ["Priya Nair"], "tier": "private"},
+ {"id": "c1", "start": "2026-11-06T14:00:00-05:00", "end": "2026-11-06T15:00:00-05:00", "title": "Northwind contract review with Priya", "where": "Zoom", "with": ["Priya Nair"], "tier": "private", "topics": ["work"]},
  {"id": "c2", "start": "2026-11-07T09:00:00-05:00", "end": "2026-11-07T10:00:00-05:00", "title": "Cardiology follow-up", "where": "Mass General", "with": [], "tier": "private"},
  {"id": "c3", "start": "2026-11-07T19:00:00-05:00", "end": "2026-11-07T21:30:00-05:00", "title": "Dinner with Sam, Lena and Rohan", "where": "Neptune Oyster", "with": ["Sam Okafor", "Lena Fischer", "Rohan Mishra"], "tier": "friends"},
  {"id": "c4", "start": "2026-11-08T10:00:00-05:00", "end": "2026-11-08T12:00:00-05:00", "title": "Climbing with Muhammad", "where": "Central Rock Gym", "with": ["Muhammad Rahman"], "tier": "friends"},
- {"id": "c5", "start": "2026-11-10T18:00:00-05:00", "end": "2026-11-10T19:30:00-05:00", "title": "Talk at Boston Tech Meetup", "where": "Cambridge Innovation Center", "with": [], "tier": "public"},
+ {"id": "c5", "start": "2026-11-10T18:00:00-05:00", "end": "2026-11-10T19:30:00-05:00", "title": "Talk at Boston Tech Meetup", "where": "Cambridge Innovation Center", "with": [], "tier": "public", "topics": ["work"]},
  {"id": "c6", "start": "2026-11-12T16:30:00-05:00", "end": "2026-11-12T18:00:00-05:00", "title": "Pick up Mum at Logan", "where": "Logan Terminal E", "with": ["Rohan Mishra"], "tier": "family"}
 ]

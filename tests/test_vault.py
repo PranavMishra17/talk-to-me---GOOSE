@@ -1,4 +1,5 @@
 import json
+from datetime import date
 
 from proxy_core import vault
 from proxy_core.policy import TIERS
@@ -15,9 +16,15 @@ def test_no_record_above_the_tier_ever_comes_back():
         for rank, tier in enumerate(TIERS):
             ids = {r["id"] for r in vault._search(name, "", tier, limit=99)}
             assert ids == {r["id"] for r in vault._load(name) if TIERS.index(r["tier"]) <= rank}
-    assert "Northwind" not in everything("family") and "Beacon" not in everything("family")
+    assert "15 percent" not in everything("family") and "Beacon" not in everything("family")
     assert "Mum" not in everything("friends") and "Oyster" not in everything("public")
     assert "\"tier\":" not in everything("private")
+
+
+def test_profile_stops_at_the_tier():
+    assert set(vault.get_profile("public")) == {"name", "role", "city", "work", "best_time_to_reach"}
+    assert "coffee" in vault.get_profile("friends") and "family_routine" not in vault.get_profile("friends")
+    assert "health" in vault.get_profile("private") and "health" not in vault.get_profile("family")
 
 
 def test_public_calendar_is_free_busy_only():
@@ -44,7 +51,6 @@ def test_a_bad_local_file_never_takes_a_call_down(tmp_path, monkeypatch):
 
 def test_private_never_reaches_the_phone():
     assert vault.phone_tier("private") == "family" and vault.phone_tier("friends") == "friends"
-    assert "18,240" not in str(vault.caller_context({"name": "Beacon Bank", "relationship": "owner", "tier": "private"}, []))
 
 
 def test_contact_needs_the_number_and_the_owner(tmp_path, monkeypatch):
@@ -58,9 +64,25 @@ def test_contact_needs_the_number_and_the_owner(tmp_path, monkeypatch):
     assert vault.find_contact("Sam", dir=tmp_path) is None and vault.find_contact("", dir=tmp_path) is None
 
 
-def test_context_is_tier_filtered():
-    sam = vault.find_contact("+15550100222")
-    text = vault.caller_context(sam, [{"started_at": "2026-11-06T11:42", "summary": "Confirmed dinner"}])
-    assert "Sam Okafor" in text and "Confirmed dinner" in text and "Neptune" in text
-    lena = vault.caller_context(vault.find_contact("+15550100444"), [])
-    assert "7:30" in lena and "gift" not in lena   # her newest friends-tier mail, not the private one above it
+TODAY = date(2026, 11, 6)
+
+
+def bundle(number):
+    return vault.prefetch("pranav", vault.find_contact(number), [], TODAY)
+
+
+def test_prefetch_is_tier_filtered_and_relevant():
+    lena = bundle("+15550100444")
+    assert "7:30" in lena and "gift" not in lena     # her friends-tier mail, not the private one
+    sam = bundle("+15550100222")
+    assert "Neptune" in sam and "Northwind" not in sam and "Cardiology" not in sam and "busy" in sam
+    priya = bundle("+15550100666")
+    assert "liability cap" in priya and "Neptune" not in priya and "Dinner" not in priya  # work, not the owner's evenings
+    assert "15 percent" not in priya and "12 percent" not in priya   # private stays private, work or not
+    assert "18,240" not in vault.prefetch("pranav", {"name": "Beacon Bank", "relationship": "owner", "tier": "private"}, [], TODAY)
+
+
+def test_prefetch_stays_short_and_only_for_the_owner():
+    for number in ("+15550100222", "+15550100333", "+15550100444", "+15550100555", "+15550100666"):
+        assert 0 < len(bundle(number).split()) <= vault.PREFETCH_WORDS
+    assert vault.prefetch("rohan", vault.find_contact("+15550100222"), [], TODAY) == ""
