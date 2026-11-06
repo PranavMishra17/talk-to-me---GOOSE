@@ -72,6 +72,8 @@ class Caller:
         self.listen_from, self.t0, self.events = time.time(), time.time(), []
         room.on("track_subscribed", self._track)
         room.on("participant_attributes_changed", self._attrs)
+        self.gone, self.state = None, None
+        room.on("disconnected", lambda reason: setattr(self, "gone", f"{time.time() - self.t0:.2f}s {reason}"))
         room.register_text_stream_handler("lk.transcription", self._text)
 
     def _note(self, what):
@@ -86,6 +88,9 @@ class Caller:
     def _attrs(self, changed, who):
         if "lk.agent.state" in changed:
             self._note(f"state {changed['lk.agent.state']}")
+        if "goose.state" in changed:
+            self.state = json.loads(changed["goose.state"])
+            self._note(f"goose.state focus={self.state['focus']} slots={self.state['slots']} pending={self.state['pending_confirm']} log={self.state['log'][-1:]}")
 
     def _text(self, reader, who):
         async def read():
@@ -143,7 +148,7 @@ async def session(a, log_path, proc):
         await lk.room.create_room(api.CreateRoomRequest(name=name, empty_timeout=30))
         await lk.agent_dispatch.create_dispatch(api.CreateAgentDispatchRequest(
             agent_name=a.persona, room=name))
-        token = api.AccessToken(key, secret).with_identity("harness-caller").with_attributes({"sip.phoneNumber": a.caller} if a.caller else {}).with_grants(
+        token = api.AccessToken(key, secret).with_identity("harness-caller").with_kind("sip" if a.sip else "standard").with_attributes({"sip.phoneNumber": a.caller} if a.caller else {}).with_grants(
             api.VideoGrants(room_join=True, room=name)).to_jwt()
         c = Caller(room)
         await room.connect(url, token)
@@ -157,8 +162,10 @@ async def session(a, log_path, proc):
             eos = await c.say(pcm)
             got = await c.wait_reply(15)
             res["turns"].append({"said": text, "first_audio_s": round(got - eos, 2) if got else None})
-        await asyncio.sleep(0.5)  # let the last transcript arrive
-        res["agent_said"], res["events"] = c.said, c.events
+        await asyncio.sleep(0.5 + a.hold)  # the last transcript; then a silent caller, for nudges and hang-ups
+        res["agent_said"], res["events"], res["disconnected"], res["state"] = c.said, c.events, c.gone, c.state
+        res["server_state"] = [json.loads(p.attributes["goose.state"]) for p in (await lk.room.list_participants(
+            api.ListParticipantsRequest(room=name))).participants if "goose.state" in p.attributes]
     finally:
         if pump:
             pump.cancel()
@@ -175,6 +182,8 @@ def main():
     ap.add_argument("--say", action="append")
     ap.add_argument("--persona", default="ash")
     ap.add_argument("--caller", default="")
+    ap.add_argument("--hold", type=float, default=0, help="stay silent this many seconds after the last line")
+    ap.add_argument("--sip", action="store_true", help="join as a SIP participant, so hang-up and BVC run the phone path")
     ap.add_argument("--no-log", action="store_true", help="skip the dashboard log line")
     a = ap.parse_args()
     a.say = a.say or ["Hi, it's Sam."]
@@ -183,7 +192,7 @@ def main():
     log_path = OUT / "worker.log"
     proc = start_worker(a.persona, log_path)
     try:
-        res = asyncio.run(asyncio.wait_for(session(a, log_path, proc), 150))
+        res = asyncio.run(asyncio.wait_for(session(a, log_path, proc), 150 + a.hold))
     finally:
         stop_worker(proc)
     text = log_path.read_text(encoding="utf-8", errors="replace")

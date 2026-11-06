@@ -4,6 +4,7 @@ Thin Agent subclass. All decisions live in proxy_core; this file only wires them
 Tool bodies are stubs with no side effects beyond a log list: bench uses mock_tools anyway.
 """
 import asyncio
+import json
 import time
 from pathlib import Path
 
@@ -15,7 +16,8 @@ from proxy_core.agenda import Agenda
 from proxy_core.config import load_config
 from proxy_core.decider import decide
 from proxy_core.echo import EchoGuard
-from proxy_core.personality import farewell, load_pack, render_style, tool_filler
+from proxy_core.personality import farewell, load_pack, nudge_text, render_style, tool_filler
+from proxy_core.silence import ACTIONS, SilenceLadder
 
 PROMPT = (Path(__file__).parent / "prompts" / "system.txt").read_text(encoding="utf-8")
 
@@ -35,7 +37,9 @@ class GooseAgent(Agent):
         self.hostile = 0
         self._fillers = 0
         self._focus = None
-        self.log: list[str] = []          # task log; web reads it tomorrow
+        self.log: list[str] = []          # task log; the web panel reads it through goose.state
+        self.summary, self._published = "", None
+        self.ladder, self._quiet = SilenceLadder(persona, self.cfg["session"]["silence_nudges_s"]), None
         super().__init__(instructions=self._prompt())
 
     def _prompt(self):
@@ -50,6 +54,7 @@ class GooseAgent(Agent):
         """Caller ID arrives with the SIP participant, after the agent exists."""
         self.caller, self.caller_tier = number, policy.resolve_tier(self.owner, number)
         await self.update_instructions(self._prompt())
+        self.publish()
 
     def _state(self, text):
         return {"turns": [{"speaker": "caller", "text": text}], "participants": ["caller", self.persona],
@@ -185,6 +190,7 @@ class GooseAgent(Agent):
         await self._hang_up()
 
     async def _hang_up(self):
+        self.publish()                       # the last state is what the panel keeps once the room closes
         if self.room:
             job = get_job_context()
             for p in list(self.room.remote_participants.values()):
@@ -197,3 +203,52 @@ class GooseAgent(Agent):
         """Write a summary to the owner's task log."""
         self.log.append(f"report[{channel}]: {text}")
         return "logged"
+
+    def state(self):
+        """One agent entry of web/mock-state.json."""
+        f = self.agenda.focus()
+        return {"persona": self.persona, "owner": self.owner, "caller_tier": self.caller_tier, "focus": f.id if f else None,
+                "agenda": [{"id": i.id, "goal": i.goal, "done": i.done} for i in self.agenda.items], "slots": self.agenda.slots,
+                "pending_confirm": next(iter(self.agenda.pending or ()), None), "log": self.log[-20:], "summary": self.summary}
+
+    def publish(self):
+        """S6-05: goose.state, only when it changed."""
+        state = json.dumps(self.state())
+        if self.room and self.room.isconnected() and state != self._published:
+            self._published = state
+            asyncio.ensure_future(self.room.local_participant.set_attributes({"goose.state": state}))
+
+    def on_user_state(self, state):
+        """S1-02: the SDK fires "away" once, at the first rung; the ladder walks the rest until the caller makes a sound."""
+        if self._quiet:
+            self._quiet.cancel()
+            self._quiet = None
+        if state != "away":
+            self.ladder.reset()
+        elif self.persona == self.lead:      # one voice nudges, and only the agent the caller rang
+            self._quiet = asyncio.ensure_future(self._watch_silence())
+
+    def _others_busy(self):
+        """Whoever else holds the floor or is talking, so a live exchange between agents is not silence."""
+        try:
+            holder = floor.FloorState.from_json(self.room.metadata or None).holder
+        except (ValueError, TypeError):
+            holder = None
+        talking = any(p.attributes.get("lk.agent.state") in ("thinking", "speaking") for p in self.room.remote_participants.values())
+        return holder if holder not in (None, self.persona) else "agent" if talking else None
+
+    async def _watch_silence(self):
+        start = time.time() - self.ladder.thresholds[0]
+        while True:
+            busy = self._others_busy()
+            if busy:
+                start = time.time()
+            act = self.ladder.tick(time.time() - start, busy, self.session.agent_state != "listening")
+            if act == "close":
+                self.log.append("end: caller went quiet")
+                asyncio.ensure_future(self._finish(self.session.say(nudge_text(self.pack, 2))))
+                return
+            if act:
+                self.log.append(f"silence: {act}")
+                self.session.say(nudge_text(self.pack, ACTIONS.index(act)))
+            await asyncio.sleep(0.25)

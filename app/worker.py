@@ -49,6 +49,9 @@ async def _run(ctx: JobContext, persona: str):
     agent.room = ctx.room
     session.on("user_input_transcribed", lambda ev: ev.is_final and agent.on_stt_final(ev.transcript))
     session.on("agent_state_changed", lambda ev: ev.old_state == "speaking" and agent.echo.ended(time.time()))
+    session.on("user_state_changed", lambda ev: agent.on_user_state(ev.new_state))
+    session.on("conversation_item_added", lambda ev: agent.publish())
+    session.on("function_tools_executed", lambda ev: agent.publish())
 
     def caller_id(p):   # S8-06: the tier comes from the number the phone network gave us
         number = p.attributes.get("sip.phoneNumber")
@@ -62,6 +65,7 @@ async def _run(ctx: JobContext, persona: str):
         audio_input=room_io.AudioInputOptions(noise_cancellation=_noise(cfg))))
     for p in ctx.room.remote_participants.values():
         caller_id(p)
+    agent.publish()
 
 
 # livekit-agents 1.8.11: ONE rtc_session per AgentServer, so ash and maya are two worker processes.
