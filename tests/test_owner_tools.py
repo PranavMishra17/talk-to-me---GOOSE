@@ -56,7 +56,7 @@ def test_the_hello_has_no_calls_and_the_update_waits_for_an_answer():
     assert "word for word" in seen[1] and "Rohan" in seen[1]
     assert "word for word" not in seen[2]
     hello = owner_hello(load_pack("goose"), "Goose", "Pranav")
-    assert hello == "Hey Pranav, Goose on your wing. How's it flying?" and "call" not in hello
+    assert hello == "Hey Pranav, Goose here. How's it going?" and "call" not in hello
 
 
 def test_a_call_gets_a_line_a_person_would_say():

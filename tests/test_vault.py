@@ -29,10 +29,8 @@ def test_profile_stops_at_the_tier():
 
 def test_public_calendar_is_free_busy_only():
     assert all(set(e) == {"when", "busy"} for e in vault.get_calendar("public"))
-    friend = {e["when"]: e.get("title") for e in vault.get_calendar("friends", today=date(2026, 11, 6))}
-    assert friend["tomorrow, 9 to 10 in the morning"] is None     # cardiology stays a busy block
-    assert "Climbing with Muhammad" in friend.values()
-    assert not any("Dinner" in (t or "") and "Northwind" not in (t or "") for t in friend.values())   # Goose adds it on stage
+    friend = vault.get_calendar("friends", today=date(2026, 11, 6))
+    assert friend and not any(e.get("title") for e in friend)      # dinner and the Logan pickup stay busy blocks
 
 
 def test_unlabelled_record_counts_as_private(tmp_path):

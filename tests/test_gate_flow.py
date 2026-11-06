@@ -56,7 +56,7 @@ SAVES = lambda a: [e for e in a.log if e.startswith("message from")]
 
 def test_a_claim_with_nothing_queued_becomes_the_confirm():
     a, said = play([("Tell him I'm bringing wine.", ["I've added that to the note."])])
-    assert "added" not in " ".join(said[0]) and "radio that" in " ".join(said[0]).lower()
+    assert "added" not in " ".join(said[0]) and "pass that to" in " ".join(said[0]).lower()
     assert "take_message" in a.agenda.pending and not SAVES(a)
 
 
@@ -67,18 +67,18 @@ def test_a_yes_to_a_spoken_offer_makes_the_claim_true():
 
 
 def test_a_yes_to_a_spoken_offer_is_not_asked_again():
-    a, said = play([("Tell him dinner works.", ["Want me to radio that?"]), ("Yes.", [MSG, "Saved."])])
-    assert "radio that" not in " ".join(said[1]).lower() and len(SAVES(a)) == 1 and not a.agenda.pending
+    a, said = play([("Tell him dinner works.", ["Want me to pass that to?"]), ("Yes.", [MSG, "Saved."])])
+    assert "pass that to" not in " ".join(said[1]).lower() and len(SAVES(a)) == 1 and not a.agenda.pending
 
 
 def test_a_repeat_after_the_yes_is_not_asked_again():
     a, said = play([("Tell him dinner works.", [MSG]), ("Yes.", ["Saved."]), ("Thanks.", [MSG, "All set."])])
-    assert "radio that" not in " ".join(said[2]).lower() and len(SAVES(a)) == 1 and not a.agenda.pending
+    assert "pass that to" not in " ".join(said[2]).lower() and len(SAVES(a)) == 1 and not a.agenda.pending
 
 
 def test_nothing_fires_without_a_yes():
     a, said = play([("Tell him dinner works.", [MSG])])
-    assert not SAVES(a) and "take_message" in a.agenda.pending and "radio that" in " ".join(said[0]).lower()
+    assert not SAVES(a) and "take_message" in a.agenda.pending and "pass that to" in " ".join(said[0]).lower()
 
 
 def test_hang_up_is_refused_on_a_polite_call_and_allowed_after_abuse():
