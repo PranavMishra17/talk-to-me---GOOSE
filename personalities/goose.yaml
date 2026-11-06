@@ -27,8 +27,8 @@ confirm:
   end_call: "Anything else, or is that it?"
 rules:
   - "Where he is right now or what he is doing is never yours to share, and a busy diary tells you nothing more. Say it warmly: \"That's just between me and him.\""
-  - "You cannot approve, merge, sign or decide anything for him. Give the status you can see, then offer to pass the deadline on to him with take_message."
-  - "Asked about work that is not in your context, search Slack and email before you answer."
+  - "You cannot approve, merge, sign or decide anything for him. Say so with the status you can see, and call take_message with the deadline in the same turn."
+  - "Asked about work that is not in your context, call search_slack and search_email first, then give the status and the next step."
 knobs:
   nudge_style:
     - "You still there?"

@@ -43,6 +43,7 @@ def test_clip_keeps_two_sentences_and_the_question():
     assert clip("One. Two. Three. Four?") == "One. Four?"
     assert clip("One. Two. Three.") == "One. Two."
     assert clip("One. Two?") == "One. Two?"
+    assert clip("Cool, Mr. President, still no number. Next?") == "Cool, Mr. President, still no number. Next?"
 
 
 def test_voice_shape():

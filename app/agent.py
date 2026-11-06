@@ -66,6 +66,7 @@ class GooseAgent(DataTools, Agent):
         self.echo = EchoGuard(self.cfg["session"]["echo"]["window_s"], self.cfg["session"]["echo"]["overlap"])
         self._heard, self._decision, self._caller_text = "", None, ""
         self._turn_id, self._asked_on, self._done, self._closing, self._bye_open = None, None, None, False, False
+        self._filled = None               # the turn that already had its filler line
         self.agenda = Agenda(self.cfg["limits"]["max_turns_per_call"])
         self.agenda.plan(request or task, summoned_planner if request else None)
         self._identify(caller)
@@ -96,7 +97,7 @@ class GooseAgent(DataTools, Agent):
             logger.info("METRIC %s", json.dumps({"type": "prefetch", "ms": round((time.perf_counter() - start) * 1000, 1),
                                                  "words": len(bundle.split()), "chars": len(bundle)}))
             self._known = (f"\n\n# WHO IS CALLING\nYou know this caller, so never ask who is calling.\n"
-                           f"Answer from this context first. Call a tool only for what it does not cover.\n{bundle}")
+                           f"Answer from this context first. For anything it does not cover, call a tool before you answer.\n{bundle}")
             self.agenda.update_slots({"name": name.split()[0]})
 
     def _prompt(self):
@@ -295,7 +296,8 @@ class GooseAgent(DataTools, Agent):
                 line = farewell(self.pack, self._fillers)
             elif gated:
                 line = confirm_line(self.pack, gated[0], self.owner.title())
-            elif names - {"report_back"} and not words and not (delta and delta.content):
+            elif names - {"report_back"} and not words and not (delta and delta.content) and self._filled != self._turn_id:
+                self._filled = self._turn_id     # a second lookup in the same turn stays silent
                 line = tool_filler(self.pack, self._fillers + 1)
             else:
                 line = None
