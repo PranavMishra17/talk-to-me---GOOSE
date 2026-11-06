@@ -40,7 +40,7 @@ def test_reset_clear_and_the_web_see_one_world(tmp_path, monkeypatch):
     assert calls.get_call("seed-0004")["actions"][0]["done"] is False
     stage("clear", tmp_path)
     assert calls.list_calls() == [] and TestClient(app).get("/api/calls").json() == []
-    assert calls.brief(calls.list_calls("pranav"), "Pranav") == "Hi Pranav, no calls yet."
+    assert calls.brief(calls.list_calls("pranav"), "Pranav") == "No calls yet."
     stage("reset", tmp_path)
     assert len(calls.list_calls()) == 4
 
