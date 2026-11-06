@@ -6,6 +6,7 @@ Tool bodies are stubs with no side effects beyond a log list: bench uses mock_to
 import asyncio
 import json
 import logging
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -66,7 +67,7 @@ class GooseAgent(Agent):
     def _prompt(self):
         peers = [f"{p['owner'].title()}'s assistant is {n.title()}" for n, p in self.cfg["personas"].items() if n != self.persona]
         network = (" You can bring one into the call with summon_agent when the caller needs something only that person "
-                   "knows. Lines like [Maya said]: ... are another assistant speaking on this call.")
+                   "knows. Lines like [Maya said]: ... are another assistant speaking on this call; never write that label yourself.")
         if self.request:
             network += f" If get_facts does not return something, say you can't share that with this caller and offer to ask {self.owner.title()}."
         return PROMPT.format(assistant=self.persona.title(), owner=self.owner.title(), caller_tier=self.caller_tier,
@@ -221,6 +222,8 @@ class GooseAgent(Agent):
         words, called = [], set()
         async for chunk in Agent.default.llm_node(self, chat_ctx, tools, model_settings):
             delta = getattr(chunk, "delta", None)
+            if delta and delta.content:      # models parrot the [Maya said]: context lines, and TTS would read them out
+                delta.content = re.sub(r"\[\w+ said\]:\s*", "", delta.content)
             names = {c.name for c in delta.tool_calls} if delta and delta.tool_calls else set()
             if delta and (delta.content or "").strip() and not names:
                 words.append(chunk)
@@ -315,7 +318,10 @@ class GooseAgent(Agent):
         """Facts about a person the CURRENT caller is allowed to hear. Tier is enforced in code."""
         person = person.strip().lower()   # the tier comes from the contact list of whoever owns the facts
         tier = self.caller_tier if person == self.owner else policy.resolve_tier(person, self.caller)
-        return policy.get_facts(person, tier)
+        facts = policy.get_facts(person, tier)
+        if self.request and person == self.owner:
+            facts["withheld"] = f"Anything not listed here you must refuse: say you can't share it with this caller and offer to ask {self.owner.title()}."
+        return facts
 
     @function_tool
     async def summon_agent(self, person: str, request: str = "") -> None:
