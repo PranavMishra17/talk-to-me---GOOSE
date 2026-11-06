@@ -33,7 +33,7 @@ turn:
   endpointing: {mode: dynamic, min_delay: 0.3, max_delay: 1.5}           # holds over 1.5 s read as dead air
   # Adaptive is suppressed in the first ~1 s of agent speech (backchannel_boundary). Real barge-ins never replay the tail; only false interruptions resume.
   interruption: {mode: adaptive, min_duration: 0.5, min_words: 0, false_interruption_timeout: 1.5, resume_false_interruption: true}
-  preemptive_generation: {enabled: true, preemptive_tts: false}
+  preemptive_generation: {enabled: true, preemptive_tts: false, max_retries: 1}   # default retries spent 3-4 LLM calls a turn
   user_turn_limit: {max_duration: 30.0}
 decider:
   backend: jev                     # jev | keyword | llm | mock | laya_local (stub, local fallback)
