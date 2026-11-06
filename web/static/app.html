@@ -6,114 +6,106 @@
 <title>Goose</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --yolk:#FFC73A; --shell:#FFF7E3; --plum:#3B1534; --plum-soft:#74506C; --tomato:#C22F1B; --leaf:#1C6B4C;
-    --display:Caprasimo,Georgia,serif; --body:Figtree,system-ui,sans-serif;
-  }
+  :root{--paper:#FFF8E7;--ink:#1A1423;--balloon:#FFD23F;--radio:#E63946;--sky:#4CC9F0;--mute:#5E5868;--shadow:5px 5px 0 var(--ink);
+    --night:#1A1423;--cream:#FFF8E7}   /* --night and --cream sit on balloon and on the talk view, and do not flip in dark mode */
+  @media (prefers-color-scheme: dark){:root{--paper:#1A1423;--ink:#FFF8E7;--mute:#B9B3C4}}
   *{box-sizing:border-box}
   html,body{height:100%}
-  body{margin:0;background:var(--yolk);color:var(--plum);font:17px/1.5 var(--body)}
+  body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 "Atkinson Hyperlegible",system-ui,sans-serif;
+    background-image:radial-gradient(color-mix(in oklab,var(--ink) 9%,transparent) 1px,transparent 1px);background-size:14px 14px}
   a{color:inherit}
-  :focus-visible{outline:3px solid var(--plum);outline-offset:3px}
+  :focus-visible{outline:3px solid var(--sky);outline-offset:3px}
   h1,h2,p,ul{margin:0}
   ul{list-style:none;padding:0}
+  h1,h2{font-family:Bangers,Impact,sans-serif;font-weight:400;letter-spacing:.03em;line-height:.95}
 
-  /* Home: the egg on the yolk, the call history on a sheet of shell */
+  /* Home */
   #home{min-height:100%;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr)}
-  .perch{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:40px 24px;text-align:center}
-  .perch h1{font:400 clamp(38px,4.6vw,60px)/1.08 var(--display);max-width:11em;text-wrap:balance}
-  .egg{appearance:none;border:0;cursor:pointer;width:min(68vw,290px);aspect-ratio:4/5;padding:0 26px;color:var(--plum);
-    background:radial-gradient(circle at 36% 28%,#fff 0 22%,var(--shell) 62%,#f6e4bd);
-    border-radius:50% 50% 50% 50%/62% 62% 40% 40%;box-shadow:0 12px 0 var(--plum);
-    font:400 38px/1.05 var(--display);transition:transform .1s,box-shadow .1s}
-  .egg:hover{transform:translateY(-3px);box-shadow:0 15px 0 var(--plum)}
-  .egg:active{transform:translateY(9px);box-shadow:0 3px 0 var(--plum)}
-  .egg:focus-visible{outline-offset:8px}
-  .dial{font-size:17px}
+  .perch{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:40px 24px;text-align:center;background:var(--balloon);color:var(--night);border-right:3px solid var(--ink)}
+  .perch h1{font-size:clamp(40px,5vw,60px);max-width:10em}
+  .egg{appearance:none;cursor:pointer;width:min(68vw,270px);aspect-ratio:4/5;padding:0 26px;color:var(--night);background:var(--cream);
+    border:3px solid var(--night);border-radius:50% 50% 50% 50%/62% 62% 40% 40%;box-shadow:5px 5px 0 var(--night);
+    font:400 38px/1 Bangers,Impact,sans-serif;letter-spacing:.03em;transition:transform .12s ease-out,box-shadow .12s ease-out}
+  .egg:hover{transform:translate(2px,2px);box-shadow:3px 3px 0 var(--night)}
+  .egg:active{transform:translate(5px,5px);box-shadow:0 0 0 var(--night)}
+  .egg:focus-visible{outline-color:var(--night)}
+  .dial{font-size:16px}
   .dial a{font-weight:700;white-space:nowrap}
-  .live{display:inline-block;background:var(--plum);color:var(--shell);padding:6px 14px;border-radius:99px;font-size:15px;font-weight:500;text-decoration:none}
-  .live::before{content:"";display:inline-block;width:9px;height:9px;margin-right:8px;border-radius:50%;background:var(--yolk);animation:blink 1.4s infinite}
-  @keyframes blink{50%{opacity:.25}}
+  .live{display:inline-block;background:var(--radio);color:#fff;padding:6px 14px;border:3px solid var(--night);box-shadow:3px 3px 0 var(--night);font-weight:700;text-decoration:none}
+  .packs{border:0;margin:0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px}
+  .packs legend{float:left;margin-right:6px;padding:0;font-weight:700}
+  .packs input{position:absolute;opacity:0}
+  .packs span{display:block;padding:3px 12px;border:2px solid var(--night);font-weight:700;cursor:pointer}
+  .packs input:checked+span{background:var(--night);color:var(--cream)}
+  .packs input:focus-visible+span{outline:3px solid var(--night);outline-offset:2px}
 
-  .sheet{background:var(--shell);padding:48px clamp(20px,5vw,64px);border-radius:36px 0 0 36px;min-width:0}
-  .sheet h2{font:400 28px/1.2 var(--display);margin-bottom:12px}
-  .sheethead{display:flex;gap:18px;align-items:baseline;flex-wrap:wrap}
+  .sheet{padding:40px clamp(20px,5vw,56px);min-width:0}
+  .sheet h2{font-size:38px}
+  .sheethead{display:flex;gap:18px;align-items:baseline;flex-wrap:wrap;margin-bottom:12px}
   .sheethead h2{margin-right:auto}
   .sheethead a{font-weight:700}
-  .call,.row{display:block;padding:16px 0;border-top:2px solid #f0dfb8;text-decoration:none}
-  .call:hover .who{text-decoration:underline}
+  .call,.row{display:block;padding:14px 0;border-top:3px solid var(--ink);text-decoration:none}
+  .call:hover .who{text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:4px}
   .top{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
-  .who{font-weight:700;font-size:19px;overflow-wrap:anywhere}
-  .when{color:var(--plum-soft);font-size:15px;margin-right:auto}
+  .who{font-weight:700;font-size:18px;overflow-wrap:anywhere}
+  .when{color:var(--mute);font-size:15px;margin-right:auto}
   .sum{max-width:62ch}
-  .badge{font-size:14px;font-weight:700;padding:2px 11px;border-radius:99px;white-space:nowrap;background:#f3e2bc}
-  .badge.needs_you{background:var(--tomato);color:#fff}
-  .badge.resolved{background:#cfeeda;color:var(--leaf)}
-  .quiet{color:var(--plum-soft);padding:16px 0}
-  .badge.t-public{background:#cfeeda;color:var(--leaf)}
-  .badge.t-friends{background:var(--yolk)}
-  .badge.t-family{background:#f8a35c}
-  .badge.t-private{background:var(--plum);color:var(--shell)}
+  .badge{font-size:14px;font-weight:700;padding:1px 9px;border:2px solid #1A1423;white-space:nowrap;background:var(--cream);color:#1A1423}
+  .badge.needs_you{background:var(--radio);color:#fff}
+  .badge.resolved{background:var(--sky)}
+  .badge.info{background:var(--balloon)}
+  .quiet{color:var(--mute);padding:14px 0}
   .badge[class*=t-]{text-transform:capitalize}
+  .badge.t-public{background:var(--sky)}
+  .badge.t-friends{background:var(--balloon)}
+  .badge.t-family{background:#F8961E}
+  .badge.t-private{background:var(--radio);color:#fff}
   .row .when{margin-right:0}
   .row .top .who{margin-right:auto}
   .row .who{font-size:17px}
   .legend{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center;justify-items:start;margin:16px 0 0}
 
-  .packs{border:0;margin:0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px}
-  .packs legend{float:left;margin-right:6px;padding:0}
-  .packs input{position:absolute;opacity:0}
-  .packs span{display:block;padding:5px 14px;border:2px solid var(--plum);border-radius:99px;font-weight:500;cursor:pointer}
-  .packs input:checked+span{background:var(--plum);color:var(--shell)}
-  .packs input:focus-visible+span{outline:3px solid var(--plum);outline-offset:3px}
-
   /* Call detail */
-  #detail{min-height:100%;background:var(--shell);padding:28px 20px 64px}
+  #detail{min-height:100%;padding:28px 20px 64px}
   .col{max-width:680px;margin:0 auto}
-  .back{display:inline-block;margin-bottom:24px;font-weight:700}
-  #detail h1{font:400 clamp(34px,6vw,46px)/1.1 var(--display);overflow-wrap:anywhere}
-  .meta{color:var(--plum-soft);margin:6px 0 14px}
+  .back{display:inline-block;margin-bottom:22px;font-weight:700}
+  #detail h1{font-size:clamp(40px,7vw,56px);overflow-wrap:anywhere}
+  .meta{color:var(--mute);margin:6px 0 14px}
   .meta::first-letter{text-transform:uppercase}
-  #detail h2{font:400 23px/1.2 var(--display);margin:32px 0 10px}
+  #detail h2{font-size:30px;margin:30px 0 10px}
   .acts li{padding:4px 0 4px 30px;position:relative}
-  .acts li::before{content:"";position:absolute;left:0;top:8px;width:18px;height:18px;border:2px solid var(--plum);border-radius:50%}
-  .acts li.done::before{background:var(--leaf);border-color:var(--leaf)}
-  .acts li.done{color:var(--plum-soft)}
+  .acts li::before{content:"";position:absolute;left:0;top:8px;width:18px;height:18px;border:3px solid var(--ink)}
+  .acts li.done::before{background:var(--sky)}
+  .acts li.done{color:var(--mute)}
   .chat{display:flex;flex-direction:column;gap:10px}
-  .say{max-width:82%;padding:9px 15px;border-radius:18px;background:#f6e6c2;align-self:flex-start;border-bottom-left-radius:4px;overflow-wrap:anywhere}
-  .say.goose{background:var(--yolk);align-self:flex-end;border-radius:18px;border-bottom-right-radius:4px}
+  .say{max-width:82%;padding:8px 13px;border:2px solid var(--ink);border-radius:14px 14px 14px 3px;align-self:flex-start;overflow-wrap:anywhere}
+  .say.goose{background:var(--balloon);color:#1A1423;border-color:#1A1423;align-self:flex-end;border-radius:14px 14px 3px 14px}
   .say b{display:block;font-size:14px}
-  .panel{border:2px solid #f0dfb8;border-radius:16px;padding:12px 16px;margin-top:12px}
-  .panel .done{text-decoration:line-through;color:var(--plum-soft)}
+  .panel{border:3px solid var(--ink);box-shadow:var(--shadow);padding:12px 16px;margin-top:16px}
+  .panel .done{text-decoration:line-through;color:var(--mute)}
 
-  /* Talk: the lights go down, the egg shows who has the floor */
-  #talk{height:100%;display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px 16px;background:var(--plum);color:var(--shell)}
-  #talk :focus-visible{outline-color:var(--yolk)}
-  .orb{flex:none;width:min(34vh,190px);aspect-ratio:4/5;margin-top:16px;background:radial-gradient(circle at 36% 28%,#fff 0 22%,var(--shell) 62%,#f6e4bd);
-    border-radius:50% 50% 50% 50%/62% 62% 40% 40%;transition:background .2s}
-  #talk.goose .orb{animation:rock .5s ease-in-out infinite alternate;background:radial-gradient(circle at 36% 28%,#ffeab0 0 22%,var(--yolk) 70%)}
-  #talk.you .orb{transform:scale(.93)}
+  /* Talk */
+  #talk{height:100%;display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px 16px;background:var(--night);color:var(--cream)}
+  .orb{flex:none;width:min(34vh,180px);aspect-ratio:4/5;margin-top:16px;background:var(--cream);border:3px solid var(--cream);border-radius:50% 50% 50% 50%/62% 62% 40% 40%;transition:transform .12s ease-out}
+  #talk.goose .orb{background:var(--balloon);transform:scale(1.04)}
+  #talk.you .orb{background:var(--sky);transform:scale(.95)}
   #talk.waiting .orb{opacity:.45}
-  @keyframes rock{from{transform:rotate(-3deg)}to{transform:rotate(3deg) scale(1.03)}}
-  #state{font:400 28px/1.2 var(--display);text-align:center}
+  #state{font:400 32px/1.1 Bangers,Impact,sans-serif;letter-spacing:.03em;text-align:center}
   #lines{flex:1;min-height:0;width:100%;max-width:640px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px}
-  #lines .say{background:#54294d;color:var(--shell)}
-  #lines .say.goose{background:var(--yolk);color:var(--plum)}
-  #end{flex:none;appearance:none;border:0;cursor:pointer;padding:13px 34px;border-radius:99px;background:var(--tomato);color:#fff;font:700 18px var(--body)}
-  #end:hover{background:#a92716}
+  #lines .say{border-color:var(--cream);color:var(--cream)}
+  #lines .say.goose{background:var(--balloon);border-color:#1A1423;color:#1A1423}
+  #end{flex:none;appearance:none;cursor:pointer;padding:9px 26px;background:var(--radio);color:#fff;border:3px solid var(--cream);font:400 21px Bangers,Impact,sans-serif;letter-spacing:.04em}
 
   [hidden]{display:none!important}
   @media (max-width:800px){
     #home{grid-template-columns:minmax(0,1fr)}
-    .perch{padding:36px 16px 40px}
-    .sheet{border-radius:28px 28px 0 0;padding:28px 16px 48px}
-    .egg{font-size:33px;width:min(58vw,240px)}
+    .perch{padding:32px 16px 36px;border-right:0;border-bottom:3px solid var(--ink)}
+    .sheet{padding:24px 16px 48px}
+    .egg{font-size:33px;width:min(58vw,230px)}
   }
-  @media (prefers-reduced-motion:reduce){
-    *{animation:none!important;transition:none!important}
-  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -127,7 +119,7 @@
     <p class="dial" id="dial" hidden>Anyone can call Goose on <a id="dialNum"></a></p>
   </section>
   <section class="sheet">
-    <div class="sheethead"><h2>Calls</h2><a href="#/contacts">Contacts</a><a href="#/data">My data</a></div>
+    <div class="sheethead"><h2>Calls</h2><a href="#/contacts">Contacts</a><a href="#/data">My data</a><a href="/">Landing page</a></div>
     <div id="calls"></div>
   </section>
 </div>
@@ -367,10 +359,11 @@ if (me.dial_in) {
   $('dialNum').textContent = me.dial_in;
   $('dialNum').href = `tel:${me.dial_in.replace(/\s/g, '')}`;
 }
-if (me.personalities?.length) {
+const packs = await get('/packs').catch(() => []);
+if (packs.length) {
   $('packs').hidden = false;
-  $('packs').insertAdjacentHTML('beforeend', me.personalities.filter(p => p !== 'default').map(p => `<label><input type="radio" name="pack" value="${esc(p)}" ${p === 'goose' ? 'checked' : ''}>
-    <span>${esc(p[0].toUpperCase() + p.slice(1))}</span></label>`).join(''));
+  $('packs').insertAdjacentHTML('beforeend', packs.map(p => `<label><input type="radio" name="pack" value="${esc(p.id)}" ${p.id === 'goose' ? 'checked' : ''}>
+    <span>${esc(p.name)}</span></label>`).join(''));
 }
 route();
 </script>

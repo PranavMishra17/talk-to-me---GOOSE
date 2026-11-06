@@ -19,7 +19,7 @@ class OwnerAgent(DataTools, Agent):
     def __init__(self, persona, owner, pack_name, number="", tier="private"):
         self.persona, self.owner, self.pack_name, self.number, self.caller_tier = persona, owner, pack_name, number, tier
         self.started_at = datetime.now().astimezone().isoformat(timespec="seconds")
-        super().__init__(instructions=PROMPT.format(assistant=persona.title(), owner=owner.title(), style=render_style(load_pack(pack_name))))
+        super().__init__(instructions=PROMPT.format(assistant=persona.title(), owner=owner.title(), style=render_style(load_pack(pack_name), "own")))
 
     async def on_enter(self):
         self.session.say(calls.brief(calls.list_calls(), self.owner.title()))

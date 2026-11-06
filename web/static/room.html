@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Goose room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#FFF8E7;--ink:#1A1423;--balloon:#FFD23F;--radio:#E63946;--sky:#4CC9F0;--mute:#5E5868;--shadow:5px 5px 0 var(--ink)}
+  @media (prefers-color-scheme: dark){:root{--paper:#1A1423;--ink:#FFF8E7;--mute:#B9B3C4}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 "Atkinson Hyperlegible",system-ui,sans-serif;
+    background-image:radial-gradient(color-mix(in oklab,var(--ink) 9%,transparent) 1px,transparent 1px);background-size:14px 14px}
+  .shout{font-family:Bangers,Impact,sans-serif;letter-spacing:.03em;line-height:.95;font-weight:400}
+  header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 24px;border-bottom:3px solid var(--ink)}
+  header .logo{font-family:Bangers;font-size:26px;letter-spacing:.05em;color:inherit;text-decoration:none}
+  header nav a{color:inherit;text-decoration:none;margin-left:18px;font-weight:700;font-size:14px}
+  header nav a:hover,header nav a:focus-visible{text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:4px}
+  main{max-width:980px;margin:0 auto;padding:28px 20px 56px}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+  h1{font-size:clamp(34px,6vw,48px);margin:0;overflow-wrap:anywhere}
+  .cta{display:inline-block;background:var(--radio);color:#fff;border:3px solid #1A1423;padding:9px 20px;font-family:Bangers;font-size:21px;letter-spacing:.04em;box-shadow:5px 5px 0 #1A1423;transition:transform .12s ease-out,box-shadow .12s ease-out;cursor:pointer}
+  .cta:hover{transform:translate(2px,2px);box-shadow:3px 3px 0 #1A1423}
+  .cta:active{transform:translate(5px,5px);box-shadow:0 0 0 #1A1423}
+  .cta:focus-visible{outline:3px solid var(--sky);outline-offset:3px}
+  .cta[disabled]{opacity:.6;cursor:default}
+  #status{margin:18px 0 0;padding:12px 16px;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;font-weight:700;background:var(--balloon);color:#1A1423}
+  #status.bad{background:var(--radio);color:#fff}
+  #status.ok{background:var(--sky)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:22px}
+  section{border:3px solid var(--ink);box-shadow:var(--shadow);padding:16px 18px;min-width:0}
+  section h2{font-size:26px;margin:0 0 8px}
+  section h3{font-size:15px;margin:12px 0 2px}
+  ul{list-style:none;margin:0;padding:0}
+  li{padding:2px 0;overflow-wrap:anywhere}
+  .now{font-weight:700}
+  .now::after{content:" (now)"}
+  .done{text-decoration:line-through;color:var(--mute)}
+  .quiet{color:var(--mute);margin:0}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <a class="logo" href="/">GOOSE</a>
+  <nav><a href="/#room">Open a room</a><a href="/app">Pranav's app</a></nav>
+</header>
+<main>
+  <div class="top">
+    <h1 class="shout" id="name">Room</h1>
+    <button class="cta" id="join">Join from browser</button>
+  </div>
+  <p id="status" role="status">Loading the room</p>
+  <div class="grid" id="grid"></div>
+</main>
+<script type="module">
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const title = s => esc(String(s ?? '').replace(/^human:/, '').replace(/^./, c => c.toUpperCase()));
+const list = (rows, none) => rows.length ? `<ul>${rows.join('')}</ul>` : `<p class="quiet">${none}</p>`;
+const room = decodeURIComponent(location.pathname.split('/').pop());
+const opened = Date.now();
+let health = {}, live = null, notice = null;   // a join problem stays up past the next poll
+
+$('name').textContent = `Room ${room}`;
+
+function say(text, kind = '') { $('status').textContent = text; $('status').className = kind; $('status').hidden = !text; }
+
+function agentPanel(a) {
+  const slots = Object.entries(a.slots || {});
+  return `<section><h2 class="shout">${title(a.persona)}, for ${title(a.owner)}</h2>
+    <p class="quiet">Caller tier: ${esc(a.caller_tier)}</p>
+    <h3>Agenda</h3>${list((a.agenda || []).map(i => `<li class="${i.id === a.focus ? 'now' : i.done ? 'done' : ''}">${esc(i.goal)}</li>`), 'No agenda yet.')}
+    <h3>Slots</h3>${list(slots.map(([k, v]) => `<li>${esc(k)}: ${esc(v)}</li>`), 'Nothing collected yet.')}
+    ${a.pending_confirm ? `<h3>Waiting for a yes</h3><p class="quiet">${esc(a.pending_confirm)}</p>` : ''}
+    <h3>Task log</h3>${list((a.log || []).map(l => `<li>${esc(l)}</li>`), 'Nothing logged yet.')}
+    ${a.summary ? `<h3>Summary</h3><p class="quiet">${esc(a.summary)}</p>` : ''}</section>`;
+}
+
+function render(s) {
+  const humans = s.participants.filter(p => p.kind !== 'agent');
+  const anyAgent = s.participants.length > humans.length;
+  $('grid').innerHTML = `<section><h2 class="shout">In the room</h2>
+      ${list(s.participants.map(p => `<li>${esc(p.identity)}${p.agent_state ? `, ${esc(p.agent_state)}` : ''}</li>`), 'Nobody yet.')}</section>
+    <section><h2 class="shout">Floor</h2>
+      <p>${s.floor.holder ? `${title(s.floor.holder)} has the floor` : 'The floor is free'}</p>
+      <p class="quiet">${s.floor.addressed_to ? `Talking to ${title(s.floor.addressed_to)}` : 'Not talking to anyone in particular'}</p></section>
+    ${Object.values(s.agents).map(agentPanel).join('')}`;
+  if (health.agent === 'offline' && !anyAgent && Date.now() - opened > 4000) say('Agent offline. Start the worker, then open a new room.', 'bad');
+  else if (health.livekit === 'down') say("Can't reach the room. Is the agent running?", 'bad');
+  else if (live) say('You are in the room. Your mic is on.', 'ok');
+  else if (notice) say(...notice);
+  else if (!humans.length) say('Nobody here yet. Dial the number or join from this browser.');
+  else say('');
+}
+
+async function poll() {
+  try {
+    const r = await fetch(`/api/rooms/${encodeURIComponent(room)}`);
+    if (!r.ok) throw new Error(r.status);
+    render(await r.json());
+  } catch { $('grid').innerHTML = ''; say("Can't reach the room. Is the agent running?", 'bad'); }
+}
+async function checkHealth() {
+  try { health = await (await fetch(`/health?room=${encodeURIComponent(room)}`)).json(); } catch { health = {}; }
+}
+
+async function join() {
+  const btn = $('join');
+  if (live) { live.disconnect(); return; }
+  btn.disabled = true;
+  notice = null;
+  try {
+    const r = await fetch(`/rooms/${encodeURIComponent(room)}/token`, {method: 'POST'});
+    if (!r.ok) throw new Error(`the server answered ${r.status}`);
+    const {url, token} = await r.json();
+    if (!url) { notice = ['Mock mode: there is no real room to join.']; return; }
+    const {Room, RoomEvent} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2.15.4/+esm');
+    const lk = new Room();
+    lk.on(RoomEvent.TrackSubscribed, t => { if (t.kind === 'audio') document.body.append(t.attach()); });
+    lk.on(RoomEvent.TrackUnsubscribed, t => t.detach().forEach(el => el.remove()));
+    lk.on(RoomEvent.Disconnected, () => {
+      live = null;
+      btn.textContent = 'Join from browser';
+      document.querySelectorAll('body > audio').forEach(a => a.remove());
+    });
+    try {
+      await lk.connect(url, token);
+      await lk.localParticipant.setMicrophoneEnabled(true);
+      await lk.startAudio();
+    } catch (e) { lk.disconnect(); throw e; }
+    live = lk;
+    btn.textContent = 'Leave';
+  } catch (e) {
+    notice = [e.name === 'NotAllowedError' ? 'Allow the microphone for this page, then join again.' : `Could not join: ${e.message}`, 'bad'];
+  } finally { btn.disabled = false; }
+}
+
+$('join').onclick = join;
+await checkHealth();
+await poll();
+setInterval(poll, 1000);
+setInterval(checkHealth, 3000);
+</script>
+</body>
+</html>

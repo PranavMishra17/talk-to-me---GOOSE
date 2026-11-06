@@ -4,23 +4,23 @@ Live room state comes from each agent's `goose.state` participant attribute; cal
 """
 import json
 import os
-from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from livekit import api
 from pydantic import BaseModel
 
 from proxy_core.calls import get_call, list_calls
-from proxy_core.config import ROOT, load_config, load_env
-from proxy_core.personality import list_packs
+from proxy_core.config import ROOT, agent_name, load_config, load_env
+from proxy_core.personality import cards, list_packs
 from proxy_core.policy import TIERS
 from proxy_core.vault import _load, _rank, contacts as all_contacts
 
 load_env()
 MOCK = os.environ.get("GOOSE_MOCK") == "1"
 MOCK_FILE = ROOT / "web" / "mock-state.json"
+STATIC = ROOT / "web" / "static"
 AGENT_KIND = 4   # ParticipantInfo.Kind.AGENT
 app = FastAPI(title="Goose")
 LAST: dict[str, dict] = {}   # the panel keeps a finished call's summary after LiveKit closes the room
@@ -28,6 +28,24 @@ LAST: dict[str, dict] = {}   # the panel keeps a finished call's summary after L
 
 class Talk(BaseModel):
     pack: str | None = None   # None keeps the persona's own pack
+
+
+class NewRoom(BaseModel):
+    owner: str
+    pack: str | None = None
+    allowed: list[str] = []   # assistant ids summon_agent may bring in
+
+
+def _phone() -> str:
+    """Only ever from the environment: the repo is public."""
+    return os.environ.get("GOOSE_PHONE_NUMBER") or os.environ.get("GOOSE_DIAL_IN") or ("+1 555 0100" if MOCK else "")
+
+
+def _pack(name: str | None, default: str) -> str:
+    pack = name or default
+    if pack not in list_packs():
+        raise HTTPException(400, f"unknown personality {pack!r}")
+    return pack
 
 
 def _lk():
@@ -58,8 +76,43 @@ def _first_persona() -> tuple[str, str, str]:
 
 @app.get("/api/me")
 async def me():
-    return {"owner": _first_persona()[1].title(), "dial_in": os.environ.get("GOOSE_DIAL_IN") or ("+1 555 0100" if MOCK else ""),
+    return {"owner": _first_persona()[1].title(), "dial_in": _phone(),
             "personalities": list_packs()}
+
+
+@app.get("/config")
+async def config():
+    return {"phone": _phone()}
+
+
+@app.get("/packs")
+async def packs():
+    return cards()
+
+
+@app.get("/health")
+async def health(room: str | None = None):
+    """LiveKit lists no workers. An agent in a room is proof, and for a named room so is a job a worker took:
+    a dispatch nobody can serve has no jobs. With no room and no agent on a call, nothing can be said."""
+    if MOCK:
+        return {"livekit": "ok", "agent": "online"}
+    lk = None
+    try:
+        lk = _lk()
+        found = (await lk.room.list_rooms(api.ListRoomsRequest(names=[room] if room else []))).rooms
+        online = False
+        for r in found:
+            people = (await lk.room.list_participants(api.ListParticipantsRequest(room=r.name))).participants
+            online = online or any(p.kind == AGENT_KIND for p in people)
+        if room and found and not online:
+            jobs = [j for d in await lk.agent_dispatch.list_dispatch(room) for j in d.state.jobs]
+            online = any(j.state.status in (0, 1) for j in jobs)   # JS_PENDING, JS_RUNNING
+        return {"livekit": "ok", "agent": "online" if online else "offline" if room else "unknown"}
+    except Exception:
+        return {"livekit": "down", "agent": "unknown"}
+    finally:
+        if lk:
+            await lk.aclose()
 
 
 @app.get("/api/calls")
@@ -94,9 +147,7 @@ async def data():
 async def talk(body: Talk = Talk()):
     """Pranav's private line: a room with only him and his agent. Phone rooms are `call-*`, these are `talk-*`."""
     agent, owner, default_pack = _first_persona()
-    pack = body.pack or default_pack
-    if pack not in list_packs():
-        raise HTTPException(400, f"unknown personality {pack!r}")
+    pack = _pack(body.pack, default_pack)
     if MOCK:
         return {"room": "mock-room", "url": "", "token": "mock"}
     name = f"talk-{os.urandom(4).hex()}"
@@ -104,7 +155,7 @@ async def talk(body: Talk = Talk()):
     try:
         await lk.room.create_room(api.CreateRoomRequest(name=name, empty_timeout=120))
         await lk.agent_dispatch.create_dispatch(api.CreateAgentDispatchRequest(
-            agent_name=agent, room=name, metadata=json.dumps({"mode": "owner", "pack": pack})))
+            agent_name=agent_name(agent), room=name, metadata=json.dumps({"mode": "owner", "pack": pack})))
     finally:
         await lk.aclose()
     jwt = api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]) \
@@ -116,9 +167,9 @@ async def talk(body: Talk = Talk()):
 @app.get("/api/rooms")
 async def rooms():
     """Live rooms, newest first. Phone calls create their own rooms, so this is how the page finds one."""
-    dial_in = os.environ.get("GOOSE_DIAL_IN", "")
+    dial_in = _phone()
     if MOCK:
-        return {"dial_in": dial_in or "+1 555 0100", "rooms": [{"room": "call-mock", "people": 2}]}
+        return {"dial_in": dial_in, "rooms": [{"room": "call-mock", "people": 2}]}
     lk = _lk()
     try:
         found = (await lk.room.list_rooms(api.ListRoomsRequest())).rooms
@@ -148,9 +199,50 @@ async def room_state(name: str):
     return state
 
 
-@app.get("/")
-async def home():
-    return RedirectResponse("/web/index.html")
+@app.post("/rooms")
+async def open_room(body: NewRoom):
+    """The floor owns room metadata (a whole-value write, and it rejects other keys), so `allowed` travels in the
+    dispatch and summon_agent reads it from there."""
+    personas = load_config()["personas"]
+    persona = next((n for n, p in personas.items() if p["owner"] == body.owner), None)
+    if persona is None:
+        raise HTTPException(400, f"no assistant for {body.owner!r}")
+    pack = _pack(body.pack, personas[persona]["pack"])
+    if MOCK:
+        return {"url": "/rooms/mock-room"}
+    name = f"goose-{os.urandom(3).hex()}"
+    lk = _lk()
+    try:
+        await lk.room.create_room(api.CreateRoomRequest(name=name, empty_timeout=300))
+        await lk.agent_dispatch.create_dispatch(api.CreateAgentDispatchRequest(
+            agent_name=agent_name(persona), room=name,
+            metadata=json.dumps({"persona": body.owner, "pack": pack, "allowed": body.allowed})))
+    finally:
+        await lk.aclose()
+    return {"url": f"/rooms/{name}"}
 
 
-app.mount("/web", StaticFiles(directory=Path(ROOT) / "web"), name="web")
+@app.get("/rooms/{name}")
+async def room_page(name: str):
+    return FileResponse(STATIC / "room.html")
+
+
+@app.post("/rooms/{name}/token")
+async def room_token(name: str):
+    """Only rooms opened from the page: no login here, so a `call-*` or `talk-*` room must not be joinable by name."""
+    if MOCK:
+        return {"url": "", "token": "mock"}
+    if not name.startswith("goose-"):
+        raise HTTPException(403, "this room cannot be joined from the browser")
+    who = f"guest-{os.urandom(2).hex()}"
+    jwt = api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]) \
+        .with_identity(who).with_name("Guest").with_grants(api.VideoGrants(room_join=True, room=name)).to_jwt()
+    return {"url": os.environ["LIVEKIT_URL"], "token": jwt}
+
+
+@app.get("/app")
+async def pranav_app():
+    return FileResponse(STATIC / "app.html")
+
+
+app.mount("/", StaticFiles(directory=STATIC, html=True), name="static")   # last: / is index.html

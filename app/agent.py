@@ -398,6 +398,9 @@ class GooseAgent(DataTools, Agent):
             return f"{target.title()} is already on the call."
         if self._summons >= self.cfg["limits"]["max_summons"]:
             return "No more assistants can join this call."
+        allowed = json.loads(get_job_context().job.metadata or "{}").get("allowed")   # set by POST /rooms; a phone call has none
+        if allowed is not None and target not in allowed:
+            return f"{target.title()} is not allowed into this room."
         self._summons += 1
         self.summoned.add(target)
         job = get_job_context()

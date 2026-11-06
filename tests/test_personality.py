@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 from proxy_core.personality import knob, list_packs, load_pack, nudge_text, render_style
 
-NAMES = ["default", "goose", "jarvis", "jesse"]
+NAMES = ["cortana", "dobby", "goose", "jarvis", "jesse", "tars"]
 
 
 def test_all_load():

@@ -4,7 +4,7 @@ import yaml
 from proxy_core.config import ROOT
 
 DIR = ROOT / "personalities"
-_NEEDED = {"name", "voice", "style", "greeting", "confirm", "knobs", "examples"}
+_NEEDED = {"name", "voice", "style", "greeting", "confirm", "knobs", "title", "from", "tag", "ext", "own", "dials"}
 
 
 def load_pack(name: str, dir: Path = DIR) -> dict:
@@ -14,16 +14,25 @@ def load_pack(name: str, dir: Path = DIR) -> dict:
     pack = yaml.safe_load(path.read_text(encoding="utf-8"))
     if missing := _NEEDED - set(pack):
         raise ValueError(f"pack {name!r} missing {sorted(missing)}")
+    d = pack["dials"]   # the dials are the one source; code reads these knobs, the landing page shows the dials
+    pack["knobs"] = {**pack["knobs"], "eagerness": d["Eager"] / 100, "directness": d["Direct"] / 100,
+                     "patience_turns": max(1, round(d["Patience"] / 20)), "humour": d["Humour"] / 100}
     return pack
+
+
+def cards() -> list[dict]:
+    """GET /packs: the landing page's shape, in its order."""
+    packs = sorted((load_pack(n) for n in list_packs()), key=lambda p: p.get("order", 99))
+    return [{"id": p["name"], "name": p["title"], **{k: p[k] for k in ("from", "tag", "ext", "own", "dials")}} for p in packs]
 
 
 def list_packs(dir: Path = DIR) -> list[str]:
     return sorted(p.stem for p in Path(dir).glob("*.yaml"))
 
 
-def render_style(pack: dict) -> str:
+def render_style(pack: dict, stance: str = "ext") -> str:
     s = pack["style"]
-    ex = " ".join(f'"{e}"' for e in pack["examples"])
+    ex = " ".join(f'"{e}"' for e in pack[stance][:2])   # ext to strangers, own to the owner
     return (
         f"Voice: {s['register']}. Favour words like {', '.join(s['vocabulary'])}. "
         f"Sentences: {s['sentence_length']}. Humour: {s['humour']}. Formality: {s['formality']}. "
