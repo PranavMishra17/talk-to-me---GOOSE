@@ -92,7 +92,7 @@ class GooseAgent(DataTools, Agent):
         self._block, self._reading = None, False
         self.log: list[str] = []          # task log; the web panel reads it through goose.state
         self.summary, self._published = "", None
-        self._parting = None
+        self._parting, self.manual_input = None, False
         self.pushes, self._asked = 0, set()   # pressure from the caller, and the things they have asked for
         self._fired, self._fix, self._yes_first = set(), None, False   # actions that ran; code's repair of a false claim; a yes that came first
         self.ladder, self._quiet = SilenceLadder(persona, self.cfg["session"]["silence_nudges_s"]), None
@@ -686,6 +686,29 @@ class GooseAgent(DataTools, Agent):
                 "owner": self.owner, "pack": self.pack_name, "summary": summary, "outcome": outcome, "hangup": self._hangup(),
                 "actions": actions, "transcript": turns}
 
+    async def on_typed(self, session, ev):
+        """lk.chat reaches generate_reply, which skips on_user_turn_completed. Typed turns run the same hook as spoken
+        ones, so the decider, gate, floor, ladder and hang-up count all apply to them."""
+        self.manual_input = True
+        async with session._claim_user_turn():
+            await session.interrupt()
+            message = llm.ChatMessage(role="user", content=[ev.text])
+            ctx = self.chat_ctx.copy()
+            try:
+                await self.on_user_turn_completed(ctx, message)
+            except StopResponse:                  # code answered, or stayed silent: the words still belong in the transcript
+                self._chat_ctx.items.append(message)
+                session._conversation_item_added(message)
+                return
+            session.generate_reply(user_input=message, chat_ctx=ctx)
+
+    def on_mic(self, muted):
+        """Hold-to-talk. The SDK's own pattern: detach the input, then commit, which flushes STT and ends the turn at once."""
+        self.manual_input = True
+        self.session.input.set_audio_enabled(not muted)
+        if muted:
+            self.session.commit_user_turn(transcript_timeout=1.5, stt_flush_duration=0.6)
+
     def _note(self, found):
         """S3-03: slots come from regex and tool arguments, never from an extra model call. True = a value changed."""
         before = dict(self.agenda.slots)
@@ -732,6 +755,8 @@ class GooseAgent(DataTools, Agent):
             self._quiet = None
         if state != "away":
             self.ladder.reset()
+        elif self.manual_input:              # typing and holding to talk are quiet on purpose
+            return
         elif self.persona == self.lead:      # one voice nudges, and only the agent the caller rang
             self._quiet = asyncio.ensure_future(self._watch_silence())
 

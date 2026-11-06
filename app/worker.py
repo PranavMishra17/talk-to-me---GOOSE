@@ -34,7 +34,8 @@ def _noise(cfg):
     if cfg["providers"]["noise_cancellation"]["kind"] != "bvc_telephony":
         return None
     from livekit.plugins import noise_cancellation   # Cloud only: install with `uv sync --extra nc`
-    return lambda params: noise_cancellation.BVCTelephony() if params.participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP else None
+    return lambda params: {rtc.ParticipantKind.PARTICIPANT_KIND_SIP: noise_cancellation.BVCTelephony,
+                           rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD: noise_cancellation.BVC}.get(params.participant.kind, lambda: None)()
 
 
 async def _first_human(ctx, wait_s):
@@ -136,9 +137,16 @@ async def _run(ctx: JobContext, persona: str):
     link = {"participant_identity": meta["link"]} if meta.get("link") else {}
     if link:
         await ctx.connect()     # RoomIO touches local_participant at once when given an identity
+    def mic(participant, publication, muted):      # hold-to-talk: RoomIO ignores mute, and a muted track just stops sending frames
+        if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD and publication.source == rtc.TrackSource.SOURCE_MICROPHONE:
+            agent.on_mic(muted)
+    ctx.room.on("track_muted", lambda p, pub: mic(p, pub, True))
+    ctx.room.on("track_unmuted", lambda p, pub: mic(p, pub, False))
+
     await session.start(room=ctx.room, agent=agent, room_options=room_io.RoomOptions(**link,
         participant_kinds=[rtc.ParticipantKind.PARTICIPANT_KIND_SIP, rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD,
                            rtc.ParticipantKind.PARTICIPANT_KIND_AGENT],   # AGENT so the other agent's speech is visible
+        text_input=room_io.TextInputOptions(text_input_cb=agent.on_typed),
         audio_input=room_io.AudioInputOptions(noise_cancellation=_noise(cfg))))
     for p in () if ctx.is_fake_job() else ctx.room.remote_participants.values():   # the console's room is a mock
         caller_id(p)

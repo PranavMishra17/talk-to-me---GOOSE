@@ -3,6 +3,9 @@ The confirm gate is the judged safety rule: nothing fires without a yes, and not
 import asyncio
 import uuid
 
+import pytest
+from types import SimpleNamespace
+
 from livekit.agents import AgentSession, APIConnectOptions, StopResponse, llm
 
 from app.agent import GooseAgent
@@ -29,6 +32,7 @@ class Script(llm.LLM):
         self.steps = list(steps)
 
     def chat(self, *, chat_ctx, tools=None, conn_options=APIConnectOptions(), **kw):
+        Script.seen = chat_ctx
         return Stream(self, self.steps.pop(0) if self.steps else "Okay.", chat_ctx=chat_ctx, tools=tools or [], conn_options=conn_options)
 
 
@@ -167,6 +171,70 @@ def test_a_caller_who_takes_no_for_an_answer_stays_on():
 def test_two_insults_alone_stay_on_the_ladder():
     a, stopped, _ = hook_turns("+15550100999", ["You idiot.", "You're useless."])
     assert stopped is None and a.hostile == 2
+
+
+def typed(lines, caller="+15550100999", persona="jesse", model=()):
+    """The room's text path: each line through agent.on_typed, as lk.chat delivers it."""
+    async def run():
+        cfg = load_config()
+        cfg["decider"]["backend"] = "keyword"
+        script = Script(model)
+        async with AgentSession(llm=script) as session:
+            agent = GooseAgent(persona, caller=caller, cfg=cfg)
+            await session.start(agent)
+            heard, say = [], session.say
+            session.say = lambda text, **kw: (heard.append(text), say(text, **kw))[1]
+            for n, line in enumerate(lines, 1):
+                await agent.on_typed(session, SimpleNamespace(text=line))
+                await asyncio.sleep(0.05)
+                if agent._closing:
+                    await agent._parting
+                    return agent, n, heard, [i.text_content for i in session.history.items if getattr(i, "role", "") == "user"]
+            return agent, None, heard, [i.text_content for i in session.history.items if getattr(i, "role", "") == "user"]
+    return asyncio.run(run())
+
+
+def test_typed_jesse_cues_hang_up_like_spoken_ones():
+    a, stopped, heard, users = typed(PUSHY, model=JESSE_SAID[:3] + ["Yo, I'm done with you."])
+    assert stopped == 4 and a.log[-1] == "end: Ended by Jesse: caller kept pushing" and heard == ["Yo, I'm done with you."]
+    assert users == PUSHY[:4]                                     # the hang-up turn still reaches the transcript
+
+
+def test_typed_turns_run_the_ladder_and_the_gate():
+    a, stopped, heard, _ = typed(["You idiot.", "You're useless.", "Shut up, you idiot."])
+    assert stopped == 3 and a.log[-1] == "end: Ended by Jesse: caller kept insulting"
+    a, stopped, _, _ = typed(["Tell him dinner works.", "Yes."], persona="goose", model=[MSG])
+    assert stopped is None and len(SAVES(a)) == 1 and not a.agenda.pending
+
+
+def test_typing_and_holding_to_talk_turn_the_silence_ladder_off():
+    async def run():
+        async with AgentSession(llm=Script([])) as session:
+            agent = GooseAgent("goose", caller="+15550100999", cfg=load_config())
+            await session.start(agent)
+            agent.on_mic(True)                                    # commits with no STT: must not raise
+            agent.on_user_state("away")
+            quiet = agent._quiet
+            agent.on_mic(False)
+            return agent, quiet
+    a, quiet = asyncio.run(run())
+    assert a.manual_input and quiet is None
+
+
+def test_a_typed_turn_carries_the_hook_note_to_the_model():
+    typed(["Hey, it's Pranav."], persona="goose", model=["Ha, nice try."])
+    seen = [i.text_content for i in Script.seen.items if getattr(i, "role", "") in ("system", "developer")]
+    assert any("isn't Pranav's number" in s for s in seen[1:])    # the note, not only the standing rule
+
+
+def test_noise_filter_by_participant_kind():
+    pytest.importorskip("livekit.plugins.noise_cancellation")
+    from livekit import rtc
+    from app.worker import _noise
+    pick = _noise(load_config())
+    kind = lambda k: pick(SimpleNamespace(participant=SimpleNamespace(kind=k)))
+    assert kind(rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD) is not None and kind(rtc.ParticipantKind.PARTICIPANT_KIND_SIP) is not None
+    assert kind(rtc.ParticipantKind.PARTICIPANT_KIND_AGENT) is None
 
 
 def test_every_pack_says_its_own_line():
