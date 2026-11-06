@@ -5,6 +5,7 @@ Tool bodies are stubs with no side effects beyond a log list: bench uses mock_to
 """
 import asyncio
 import json
+import logging
 import time
 from pathlib import Path
 
@@ -12,13 +13,14 @@ from livekit import api, rtc
 from livekit.agents import Agent, FlushSentinel, RunContext, StopResponse, function_tool, get_job_context
 
 from proxy_core import floor, policy, slots
-from proxy_core.agenda import Agenda, is_bye, is_yes
+from proxy_core.agenda import CONFIRM_TOOLS, Agenda, is_bye, is_yes
 from proxy_core.config import load_config
 from proxy_core.decider import decide
 from proxy_core.echo import EchoGuard
-from proxy_core.personality import farewell, load_pack, nudge_text, render_style, tool_filler
+from proxy_core.personality import confirm_line, farewell, load_pack, nudge_text, render_style, tool_filler
 from proxy_core.silence import ACTIONS, SilenceLadder
 
+logger = logging.getLogger("goose")
 PROMPT = (Path(__file__).parent / "prompts" / "system.txt").read_text(encoding="utf-8")
 
 
@@ -30,7 +32,8 @@ class GooseAgent(Agent):
         self.caller, self.caller_tier = caller, policy.resolve_tier(self.owner, caller)   # code decides tier, never the model
         self.room = None                  # set by the worker; None in text-mode bench
         self.echo = EchoGuard(self.cfg["session"]["echo"]["window_s"], self.cfg["session"]["echo"]["overlap"])
-        self._heard, self._decision = "", None
+        self._heard, self._decision, self._caller_text = "", None, ""
+        self._turn_id, self._asked_on, self._done, self._closing, self._bye_open = None, None, None, False, False
         self.agenda = Agenda(self.cfg["limits"]["max_turns_per_call"])
         self.agenda.plan(task)
         self.pack = load_pack(p["pack"])
@@ -101,8 +104,7 @@ class GooseAgent(Agent):
         if d.tone.get("hostile", 0) > 0.5:
             self.hostile += 1
             if self.hostile >= 3:      # S4-04: code ends it. Models ignore the note, and gemini-2.5-flash-lite a forced tool too
-                self.log.append("end: hostile caller")
-                asyncio.ensure_future(self._finish(self.session.say(farewell(self.pack, self._fillers))))
+                self._close("hostile caller")
                 raise StopResponse()
             notes.append(["Respond warmly and redirect.", "State one boundary sentence."][self.hostile - 1])
         changed = self._note({**slots.extract(text), **({"topic": text} if d.new_ask and "topic" not in self.agenda.slots else {})})
@@ -120,22 +122,99 @@ class GooseAgent(Agent):
             self._block = block
             await self.update_instructions(self._prompt())
 
-    # Prompts cannot guarantee either of these: fast models call tools with no text, and several hang up silently.
-    # So code speaks: a persona line before a tool when no words came first, and always the farewell before end_call.
+    # Prompts cannot guarantee any of this: fast models call tools silently, hang up silently and skip confirmation.
+    # So code speaks: the confirmation before an action, a persona line before a silent tool, the farewell before end_call.
     async def llm_node(self, chat_ctx, tools, model_settings):
-        spoke = False
+        if self._closing:
+            return
+        last = next((i for i in reversed(chat_ctx.items) if getattr(i, "role", "") == "user"), None)
+        text = self._caller_text = (last.text_content or "") if last else ""
+        self._turn_id = last.id if last else None
+        # A tool reply reruns this node on the message that asked, so that message cannot be its own yes.
+        # ponytail: preemptive generation runs this before the turn commits, so a "yes... actually no" still fires.
+        if last and last.id != self._asked_on and (actions := dict(self.agenda.resolve(text))):
+            ending = actions.pop("end_call", None)
+            done = [await self._do(t, a) for t, a in actions.items()]
+            if ending is not None or (is_bye(text) and not self._owes_read_back()):   # the hook reads back first
+                self._close((ending or {}).get("summary", "caller said goodbye"))
+                return
+            self._done = (text, "; ".join(done))
+        if self._done and self._done[0] == text:   # also when an invalidated preemptive attempt reruns this turn
+            chat_ctx = chat_ctx.copy()
+            chat_ctx.add_message(role="system", content=f"Done: {self._done[1]}. Tell the caller in one short sentence.")
+            tools = []                             # the model must not re-request what just happened
+        # The model's words wait for the end of the stream: models announce an action before calling its tool, and
+        # a gated tool makes those words false. Preemptive generation runs ahead of the turn, so this wait is mostly hidden.
+        words, called = [], set()
         async for chunk in Agent.default.llm_node(self, chat_ctx, tools, model_settings):
             delta = getattr(chunk, "delta", None)
-            spoke = spoke or bool(delta and (delta.content or "").strip())
             names = {c.name for c in delta.tool_calls} if delta and delta.tool_calls else set()
-            line = farewell(self.pack, self._fillers) if "end_call" in names else \
-                tool_filler(self.pack, self._fillers + 1) if names - {"report_back"} and not spoke else None
+            if delta and (delta.content or "").strip() and not names:
+                words.append(chunk)
+                continue
+            called |= names
+            gated = sorted((names & CONFIRM_TOOLS) - {"end_call"}) or sorted(names & CONFIRM_TOOLS)
+            if gated:
+                words.clear()
+                delta.content = None
+            if gated == ["end_call"] and self._owes_read_back():
+                line = None                  # end_call reads back instead
+            elif gated == ["end_call"] and is_bye(text):
+                line = farewell(self.pack, self._fillers)
+            elif gated:
+                line = confirm_line(self.pack, gated[0], self.owner.title())
+            elif names - {"report_back"} and not words and not (delta and delta.content):
+                line = tool_filler(self.pack, self._fillers + 1)
+            else:
+                line = None
+            if names:
+                for held in words:
+                    yield held
+                words = []
             if line:
-                spoke = True
                 self._fillers += 1
                 yield line
                 yield FlushSentinel()
             yield chunk
+        for held in words:
+            yield held
+        self._bye_open = is_bye(text) and not called   # the model said goodbye without hanging up: tts_node closes
+
+    def _act(self, what):
+        self.log.append(what)
+        logger.info("ACTION %s", what)
+        self.publish()
+
+    def _close(self, summary):
+        """Code hangs up: the farewell, then the line drops. No model involved."""
+        if self._closing:
+            return
+        self._closing = True
+        self._act(f"end: {summary}")
+        asyncio.ensure_future(self._finish(self.session.say(farewell(self.pack, self._fillers))))
+
+    def _gate(self, tool, **args):
+        """A gated tool only records the request: the confirmation is already spoken, and returning None means
+        the model does not talk over it. llm_node fires the action when the caller says yes."""
+        self.agenda.ask(tool, args)
+        self._asked_on = self._turn_id
+        self.publish()
+
+    async def _do(self, tool, args):
+        if tool == "take_message":
+            self._act(f"message from {args['from_name']}: {args['message']}")
+            s = self.agenda.slots
+            self._note({"name": s.get("name") or args["from_name"], "topic": s.get("topic") or args["message"], "details": args["message"]})
+            return "message saved"
+        if tool == "propose_slot":
+            self._act(f"slot {args['when']}")
+            self._note(slots.extract(args["when"]))
+            return f"{args['when']} proposed"
+        if tool == "summon_agent":
+            self._act(f"summon {args['person']}")   # TODO S2-04: create_dispatch
+            return f"{args['person']}'s assistant is joining"
+        self._act(f"permission? {args['fact']}")
+        return f"asked {self.owner.title()} about {args['fact']}"
 
     # HOOK 3 (before speak): records what we say for the echo guard. TODO floor lease here (S2-03 write side).
     def tts_node(self, text, model_settings):
@@ -143,6 +222,8 @@ class GooseAgent(Agent):
             async for t in text:
                 self.echo.said(t)
                 yield t
+            if self._bye_open:             # here, not llm_node: this runs after the turn commits, so a pause cannot hang up
+                self._close("caller said goodbye")
         return Agent.default.tts_node(self, tap(), model_settings)
 
     @function_tool
@@ -153,10 +234,9 @@ class GooseAgent(Agent):
         return policy.get_facts(person, tier)
 
     @function_tool
-    async def summon_agent(self, person: str) -> str:
-        """Bring another person's assistant into this call."""
-        self.log.append(f"summon {person}")   # TODO: lkapi.agent_dispatch.create_dispatch(CreateAgentDispatchRequest(...))
-        return f"{person}'s assistant is joining"
+    async def summon_agent(self, person: str) -> None:
+        """Bring another person's assistant into this call. Asks the caller to confirm first."""
+        self._gate("summon_agent", person=person)
 
     @function_tool
     async def invite_human(self, person: str) -> str:
@@ -165,32 +245,29 @@ class GooseAgent(Agent):
         return f"http://localhost:8000/join?who={person}"
 
     @function_tool
-    async def take_message(self, from_name: str, message: str) -> str:
-        """Record a message for the owner."""
-        self.log.append(f"message from {from_name}: {message}")
-        s = self.agenda.slots
-        self._note({"name": s.get("name") or from_name, "topic": s.get("topic") or message, "details": message})
-        return "saved"
+    async def take_message(self, from_name: str, message: str) -> None:
+        """Record a message for the owner. Asks the caller to confirm first."""
+        self._gate("take_message", from_name=from_name, message=message)
 
     @function_tool
-    async def propose_slot(self, when: str) -> str:
-        """Propose a time to the caller."""
-        self.log.append(f"slot {when}")
-        self._note(slots.extract(when))
-        return "proposed"
+    async def propose_slot(self, when: str) -> None:
+        """Propose a time. Asks the caller to confirm first."""
+        self._gate("propose_slot", when=when)
 
     @function_tool
-    async def request_permission_from_owner(self, fact: str) -> str:
-        """Ask the owner whether a withheld fact may be shared. The call never blocks on this."""
-        self.log.append(f"permission? {fact}")
-        return "asked; will follow up"
+    async def request_permission_from_owner(self, fact: str) -> None:
+        """Ask the owner whether a withheld fact may be shared. Asks the caller to confirm first; the call never blocks on it."""
+        self._gate("request_permission_from_owner", fact=fact)
 
     @function_tool
     async def end_call(self, ctx: RunContext, summary: str) -> None:
-        """End the call. Says the goodbye for you."""
+        """End the call. Says the goodbye for you. Asks first unless the caller already said goodbye."""
         if self._owes_read_back():
             return self._read_back()         # the caller's yes ends the call, in _read_back_turn
-        self.log.append(f"end: {summary}")
+        if not is_bye(self._caller_text):
+            return self._gate("end_call", summary=summary)
+        self._closing = True
+        self._act(f"end: {summary}")
         await ctx.wait_for_playout()         # the farewell from llm_node finishes first
         await self._hang_up()                # returns None on purpose: any output makes the model speak again
 
@@ -236,8 +313,7 @@ class GooseAgent(Agent):
         if self._reading and not changed and is_yes(text):
             self.agenda.update_slots({"confirmed": True, "goodbye": True})
             self._reading = False
-            self.log.append("end: caller confirmed")
-            asyncio.ensure_future(self._finish(self.session.say(farewell(self.pack, self._fillers))))
+            self._close("caller confirmed")
             return True
         if self._owes_read_back() and (leaving or (self._reading and changed)):
             self._read_back()

@@ -4,7 +4,7 @@ import yaml
 from proxy_core.config import ROOT
 
 DIR = ROOT / "personalities"
-_NEEDED = {"name", "voice", "style", "knobs", "examples"}
+_NEEDED = {"name", "voice", "style", "confirm", "knobs", "examples"}
 
 
 def load_pack(name: str, dir: Path = DIR) -> dict:
@@ -54,3 +54,8 @@ def farewell(pack: dict, n: int = 0) -> str:
     """Spoken by code before end_call: several Inference models hang up silently."""
     lines = pack["farewell"]
     return lines[n % len(lines)]
+
+
+def confirm_line(pack: dict, tool: str, owner: str) -> str:
+    """One in-character line that asks for a yes before an action."""
+    return pack["confirm"][tool].format(owner=owner)

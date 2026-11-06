@@ -5,7 +5,7 @@ Starts the real worker, dispatches it into a real room, joins as a caller, speak
 end of caller speech -> first agent audio. The room and worker are always torn down. Exit 0 = every line answered in budget.
 Result goes to stdout, .harness/, and the dashboard log.
 """
-import argparse, asyncio, hashlib, json, os, subprocess, sys, time, uuid, wave
+import argparse, asyncio, hashlib, json, os, re, subprocess, sys, time, uuid, wave
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -16,11 +16,13 @@ from livekit.agents import inference
 
 import plan
 from proxy_core import latency
+from proxy_core.agenda import is_bye, is_yes
 from proxy_core.config import load_config, load_env
 
 OUT = ROOT / ".harness"
 SR, FRAME = 24000, 480   # 20 ms
 BUDGET_S, QUIET_S, PEAK = 3.0, 1.5, 300
+CLOSED = "session closed"
 WARNINGS = ("slow audio generation", "preemptive generation invalidated", "error occurred", "Traceback", "using preemptive generation")
 
 
@@ -161,8 +163,14 @@ async def session(a, log_path, proc):
         for text, pcm in lines:
             eos = await c.say(pcm)
             got = await c.wait_reply(15)
-            res["turns"].append({"said": text, "first_audio_s": round(got - eos, 2) if got else None})
+            res["turns"].append({"at": time.strftime("%H:%M:%S", time.localtime(eos)), "said": text,
+                                 "first_audio_s": round(got - eos, 2) if got else None})
         await asyncio.sleep(0.5 + a.hold)  # the last transcript; then a silent caller, for nudges and hang-ups
+        if is_bye(a.say[-1]) or is_yes(a.say[-1]):   # the agent must close it: checked while the room is still alive
+            end = time.time() + 10
+            while not (closed := CLOSED in log_path.read_text(encoding="utf-8", errors="replace")) and time.time() < end:
+                await asyncio.sleep(0.25)
+            res["closed"] = closed
         res["agent_said"], res["events"], res["disconnected"], res["state"] = c.said, c.events, c.gone, c.state
         res["server_state"] = [json.loads(p.attributes["goose.state"]) for p in (await lk.room.list_participants(
             api.ListParticipantsRequest(room=name))).participants if "goose.state" in p.attributes]
@@ -197,8 +205,9 @@ def main():
         stop_worker(proc)
     text = log_path.read_text(encoding="utf-8", errors="replace")
     res["log_hits"] = {w: text.count(w) for w in WARNINGS if w in text}
+    res["actions"] = re.findall(r"(\d\d:\d\d:\d\d),\d+ .*ACTION (.*?) *(?:|$)", text, re.M)   # the task log, worker wall clock
     res["modules"] = latency.turns(latency.parse(text))
-    ok = bool(res["turns"]) and all((t["first_audio_s"] or 99) <= BUDGET_S for t in res["turns"])
+    ok = bool(res["turns"]) and all((t["first_audio_s"] or 99) <= BUDGET_S for t in res["turns"]) and res.get("closed", True)
     res["pass"] = ok
     (OUT / "last.json").write_text(json.dumps(res, indent=1), encoding="utf-8")
     print(json.dumps({k: v for k, v in res.items() if k != "modules"}, indent=1))

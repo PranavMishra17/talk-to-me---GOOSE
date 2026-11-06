@@ -14,6 +14,12 @@ tool_filler:
 farewell:
   - "Okay, bye for now."
   - "Take care, bye."
+confirm:
+  take_message: "Want me to pass that on to {owner}?"
+  propose_slot: "Shall I go with that time?"
+  summon_agent: "Want me to bring them in?"
+  request_permission_from_owner: "Want me to ask {owner}?"
+  end_call: "Is that everything for now?"
 knobs:
   eagerness: 0.5
   directness: 0.5

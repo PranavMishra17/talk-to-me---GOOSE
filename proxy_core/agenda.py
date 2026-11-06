@@ -6,7 +6,7 @@ from typing import Callable, Optional
 # Judges' rubric: these never fire on the model's say-so. The caller must say yes first.
 CONFIRM_TOOLS = {"take_message", "propose_slot", "summon_agent", "request_permission_from_owner", "end_call"}
 _YES = re.compile(r"\b(yes|yeah|yep|yup|sure|ok|okay|please do|go ahead|do it|sounds good|correct|that's right|perfect|absolutely)\b", re.I)
-_NO = re.compile(r"\b(no|nope|don't|do not|not yet|wait|hold on|never mind|nevermind|cancel)\b", re.I)
+_NO = re.compile(r"\b(no(?! (?:problem|worries))|nope|not|don't|wait|hold on|never mind|nevermind|cancel)\b", re.I)
 _CHANGE = re.compile(r"\b(but|actually|instead|change)\b", re.I)
 _BYE = re.compile(r"\b(goodbye|good bye|bye)\b|that'?s all", re.I)
 
@@ -55,21 +55,19 @@ class Agenda:
         self.items: list[AgendaItem] = []
         self.slots: dict = {}
         self.total_turns, self.max_turns_per_call = 0, max_turns_per_call
-        self.pending: Optional[tuple[str, dict]] = None  # (tool, args) waiting for the caller's yes
+        self.pending: dict[str, dict] = {}  # tool -> args waiting for the caller's yes; a corrected call replaces its own entry
 
     def ask(self, tool: str, args: dict) -> None:
-        self.pending = (tool, args)
+        self.pending[tool] = args
 
-    def resolve(self, caller_text: str) -> Optional[tuple[str, dict]]:
-        """The caller's answer to the pending action. Returns it once on yes; a no drops it; anything else waits."""
-        if not self.pending:
-            return None
-        if is_yes(caller_text):
-            action, self.pending = self.pending, None
-            return action
+    def resolve(self, caller_text: str) -> list[tuple[str, dict]]:
+        """The caller's answer to what is pending. Returns it once on yes; a no drops it; anything else waits."""
+        if self.pending and is_yes(caller_text):
+            actions, self.pending = list(self.pending.items()), {}
+            return actions
         if is_no(caller_text):
-            self.pending = None
-        return None
+            self.pending = {}
+        return []
 
     def plan(self, task_text: str, planner: Callable[[str], list[AgendaItem]] = None) -> list[AgendaItem]:
         self.items = (planner or mock_planner)(task_text)

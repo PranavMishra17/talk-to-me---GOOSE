@@ -14,6 +14,12 @@ tool_filler:
 farewell:
   - "Good day."
   - "I shall bid you good day."
+confirm:
+  take_message: "Shall I relay that to {owner}?"
+  propose_slot: "Shall I propose that time?"
+  summon_agent: "Shall I bring them in?"
+  request_permission_from_owner: "Shall I put that to {owner}?"
+  end_call: "Will that be all?"
 knobs:
   eagerness: 0.4
   directness: 0.7
