@@ -43,6 +43,7 @@ class GooseAgent(Agent):
         self.summoned: set[str] = set()   # personas asked in on this call, joined or on the way
         self._summons = 0
         self._intro_done = not request
+        self._ask = None                  # (caller's yes, the line that asks the summoned agent aloud)
         self.echo = EchoGuard(self.cfg["session"]["echo"]["window_s"], self.cfg["session"]["echo"]["overlap"])
         self._heard, self._decision, self._caller_text = "", None, ""
         self._turn_id, self._asked_on, self._done, self._closing, self._bye_open = None, None, None, False, False
@@ -96,6 +97,7 @@ class GooseAgent(Agent):
 
     def spoke_end(self, now):
         self.echo.ended(now)
+        self._ask = None
         if self.floor:
             asyncio.ensure_future(self.floor.release())
 
@@ -213,7 +215,11 @@ class GooseAgent(Agent):
                 self._close((ending or {}).get("summary", "caller said goodbye"))
                 return
             self._done = (text, "; ".join(done))
-        if self._done and self._done[0] == text:   # also when an invalidated preemptive attempt reruns this turn
+        # startswith: STT can split the yes ("Yes." "Please."), so the committed turn is longer than the preemptive one.
+        if self._ask and text.startswith(self._ask[0]):   # the summon line is code's: the model repeats the confirm instead
+            yield self._ask[1]
+            return
+        if self._done and text.startswith(self._done[0]):   # also when an invalidated preemptive attempt reruns this turn
             chat_ctx = chat_ctx.copy()
             chat_ctx.add_message(role="system", content=f"Done: {self._done[1]}. Tell the caller in one short sentence.")
             tools = []                             # the model must not re-request what just happened
@@ -362,7 +368,8 @@ class GooseAgent(Agent):
             self.floor.expect_peer(False)
             return f"{target.title()} can't join right now. Carry on without them."
         asyncio.ensure_future(self._await_join(target, d.id))
-        return f"{target.title()} is joining. In one sentence, say you are bringing them in and ask them aloud: {meta['request']}"
+        self._ask = (self._caller_text, f"Let me bring in {target.title()}. {target.title()}, {meta['request']}")
+        return f"{target.title()} is joining"
 
     async def _await_join(self, target, dispatch_id):
         end = time.time() + JOIN_TIMEOUT_S
