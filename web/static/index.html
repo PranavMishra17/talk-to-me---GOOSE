@@ -36,6 +36,8 @@
   .phone small{display:block;font-family:"Atkinson Hyperlegible";font-size:13px;letter-spacing:0;color:var(--mute)}
 
   /* the one animated moment: a ringing phone, pure CSS */
+  .headline{color:inherit;text-decoration:none;display:inline-block;transition:transform .15s}
+  .headline:hover,.headline:focus-visible{transform:translate(-2px,-2px);text-decoration:underline;text-decoration-thickness:4px}
   .ring{width:120px;height:120px;margin:0 auto 6px;position:relative}
   .ring svg{width:100%;height:100%;overflow:visible}
   .ring .handset{transform-origin:60px 70px;animation:shake 1.1s ease-in-out infinite}
@@ -92,7 +94,7 @@
 <main>
   <section class="hero">
     <div class="balloon">
-      <h1 class="shout">Talk to me, Goose.</h1>
+      <h1 class="shout"><a class="headline" href="/app?talk=1">Talk to me, Goose.</a></h1>
       <p>Your assistant picks up when you can't. It knows who's calling, what they're allowed to hear, and when to pull someone else's assistant into the call. Interrupt it, go quiet, tell it to talk normal: it keeps its spine.</p>
     </div>
     <aside>
@@ -105,7 +107,7 @@
         </svg>
       </div>
       <p><strong>Can't pick up? Get Goose to take the call for you.</strong> It knows who's calling, sorts out what it can, and tells you how it went.</p>
-      <a class="cta" href="/app?talk=1">Talk to me, Goose</a>
+      <a class="cta" href="#room">Call Goose</a>
       <div class="phone" id="phone">+1 (xxx) xxx-xxxx<small>Rings Goose directly</small></div>
     </aside>
   </section>
