@@ -39,7 +39,10 @@
 
   .sheet{background:var(--shell);padding:48px clamp(20px,5vw,64px);border-radius:36px 0 0 36px;min-width:0}
   .sheet h2{font:400 28px/1.2 var(--display);margin-bottom:12px}
-  .call{display:block;padding:16px 0;border-top:2px solid #f0dfb8;text-decoration:none}
+  .sheethead{display:flex;gap:18px;align-items:baseline;flex-wrap:wrap}
+  .sheethead h2{margin-right:auto}
+  .sheethead a{font-weight:700}
+  .call,.row{display:block;padding:16px 0;border-top:2px solid #f0dfb8;text-decoration:none}
   .call:hover .who{text-decoration:underline}
   .top{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
   .who{font-weight:700;font-size:19px;overflow-wrap:anywhere}
@@ -49,6 +52,22 @@
   .badge.needs_you{background:var(--tomato);color:#fff}
   .badge.resolved{background:#cfeeda;color:var(--leaf)}
   .quiet{color:var(--plum-soft);padding:16px 0}
+  .badge.t-public{background:#cfeeda;color:var(--leaf)}
+  .badge.t-friends{background:var(--yolk)}
+  .badge.t-family{background:#f8a35c}
+  .badge.t-private{background:var(--plum);color:var(--shell)}
+  .badge[class*=t-]{text-transform:capitalize}
+  .row .when{margin-right:0}
+  .row .top .who{margin-right:auto}
+  .row .who{font-size:17px}
+  .legend{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center;justify-items:start;margin:16px 0 0}
+
+  .packs{border:0;margin:0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px}
+  .packs legend{float:left;margin-right:6px;padding:0}
+  .packs input{position:absolute;opacity:0}
+  .packs span{display:block;padding:5px 14px;border:2px solid var(--plum);border-radius:99px;font-weight:500;cursor:pointer}
+  .packs input:checked+span{background:var(--plum);color:var(--shell)}
+  .packs input:focus-visible+span{outline:3px solid var(--plum);outline-offset:3px}
 
   /* Call detail */
   #detail{min-height:100%;background:var(--shell);padding:28px 20px 64px}
@@ -103,17 +122,18 @@
   <section class="perch">
     <h1 id="hi">Hi, how are you?</h1>
     <button class="egg" id="talkBtn">Talk to me, Goose</button>
+    <fieldset class="packs" id="packs" hidden><legend>Personality</legend></fieldset>
     <a class="live" id="live" hidden>Goose is on a call right now</a>
     <p class="dial" id="dial" hidden>Anyone can call Goose on <a id="dialNum"></a></p>
   </section>
   <section class="sheet">
-    <h2>Calls</h2>
+    <div class="sheethead"><h2>Calls</h2><a href="#/contacts">Contacts</a><a href="#/data">My data</a></div>
     <div id="calls"></div>
   </section>
 </div>
 
 <div id="detail" hidden><div class="col">
-  <a class="back" href="#/">All calls</a>
+  <a class="back" href="#/">Home</a>
   <div id="record"></div>
 </div></div>
 
@@ -129,6 +149,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const get = async url => { const r = await fetch(url); if (!r.ok) throw new Error(`${url} answered ${r.status}`); return r.json(); };
 const OUTCOME = {resolved: 'Resolved', needs_you: 'Needs you', info: 'Info'};
+const tierBadge = t => `<span class="badge t-${esc(t)}">${esc(t)}</span>`;
 const badge = o => `<span class="badge ${esc(o)}">${esc(OUTCOME[o] || o)}</span>`;
 const isGoose = (who, c) => ['goose', 'agent', 'assistant', c.persona].includes(String(who).toLowerCase());
 const name = c => c.kind === 'owner' ? 'You and Goose' : c.contact?.name || c.number || 'Unknown caller';
@@ -163,7 +184,7 @@ async function loadCall(id) {
   try { c = await get(`/api/calls/${encodeURIComponent(id)}`); }
   catch { $('record').innerHTML = '<h1>Call not found</h1><p class="meta">It may have been removed. Pick another from the list.</p>'; return; }
   const mins = c.ended_at ? Math.max(1, Math.round((new Date(c.ended_at) - new Date(c.started_at)) / 6e4)) : 0;
-  const whoLine = [c.contact?.relationship, c.contact && c.number].filter(Boolean).join(', ');
+  const whoLine = [c.contact?.relationship, c.contact && c.number && `\u2022\u2022\u2022\u2022 ${c.number.replace(/\D/g, '').slice(-4)}`].filter(Boolean).join(', ');
   $('record').innerHTML = `<h1>${esc(name(c))}</h1>
     <p class="meta">${whoLine ? esc(whoLine) + '<br>' : ''}${esc(when(c.started_at))}${mins ? `, ${mins} min` : ''}</p>
     ${badge(c.outcome)}
@@ -174,6 +195,40 @@ async function loadCall(id) {
       const g = isGoose(t.who, c);
       return `<div class="say ${g ? 'goose' : ''}"><b>${g ? 'Goose' : c.kind === 'owner' ? 'You' : esc(c.contact?.name || 'Caller')}</b>${esc(t.text)}</div>`;
     }).join('') || '<p class="quiet">No transcript was saved for this call.</p>'}</div>`;
+}
+
+/* Contacts */
+async function loadContacts() {
+  const list = await get('/api/contacts');
+  $('record').innerHTML = `<h1>Contacts</h1>
+    <p class="meta">A contact's tier decides what Goose may tell them. Numbers show the last 4 digits only.</p>
+    ${list.map(c => `<div class="row"><div class="top"><span class="who">${esc(c.name)}</span>${tierBadge(c.tier)}</div>
+      <p class="when">${esc(c.relationship)}${c.numbers.length ? `, ${esc(c.numbers.join(', '))}` : ''}</p></div>`).join('')
+      || '<p class="quiet">No contacts yet. Add them to data/contacts.local.json.</p>'}`;
+}
+
+/* My data */
+const SOURCES = [
+  ['gmail', 'Gmail', r => [r.subject, `From ${r.from}, ${when(r.date)}`]],
+  ['slack', 'Slack', r => [r.text, `${r.channel}, ${r.from}`]],
+  ['calendar', 'Calendar', r => [r.title, [when(r.start), r.where].filter(Boolean).join(', ')]],
+  ['notes', 'Notes', r => [r.title, r.text]],
+  ['tasks', 'Tasks', r => [r.text, r.due ? `Due ${r.due}${r.done ? ', done' : ''}` : '']],
+];
+async function loadData() {
+  const data = await get('/api/data');
+  $('record').innerHTML = `<h1>My data</h1>
+    <p class="meta">Goose checks every record's tier in code, so the model never sees one above the caller's tier.</p>
+    <div class="legend">
+      ${tierBadge('public')}<span>Anyone who calls</span>
+      ${tierBadge('friends')}<span>Friends and family</span>
+      ${tierBadge('family')}<span>Family only</span>
+      ${tierBadge('private')}<span>Never shared on a phone call</span>
+    </div>
+    ${SOURCES.map(([key, label, show]) => `<h2>${label}</h2>${data[key].map(r => {
+      const [title, sub] = show(r);
+      return `<div class="row"><div class="top"><span class="who">${esc(title)}</span>${tierBadge(r.tier)}</div><p class="when">${esc(sub)}</p></div>`;
+    }).join('') || '<p class="quiet">Nothing here yet.</p>'}`).join('')}`;
 }
 
 /* Live call panel */
@@ -269,7 +324,8 @@ $('talkBtn').onclick = async () => {
   location.hash = '#/talk';
   const mine = talk;
   try {
-    const r = await fetch('/api/talk', {method: 'POST'});
+    const pack = document.querySelector('input[name=pack]:checked')?.value;
+    const r = await fetch('/api/talk', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({pack})});
     if (!r.ok) throw new Error(`the server answered ${r.status}`);
     const res = await r.json();
     const s = res.url ? await liveTalk(res) : mockTalk();
@@ -290,11 +346,15 @@ function route() {
   if (view !== 'talk' && talk) endTalk();
   if (view === 'talk' && !talk) { location.hash = '#/'; return; }   // a reload cannot reopen the mic without a click
   $('home').hidden = !!view;
-  $('detail').hidden = view !== 'call' && view !== 'live';
+  $('detail').hidden = !['call', 'live', 'contacts', 'data'].includes(view);
   $('talk').hidden = view !== 'talk';
   scrollTo(0, 0);
   if (view === 'talk') $('end').textContent = 'End talk';
   else if (view === 'call') loadCall(id);
+  else if (view === 'contacts' || view === 'data') {
+    $('record').innerHTML = '';
+    (view === 'data' ? loadData : loadContacts)().catch(e => { $('record').innerHTML = `<h1>Could not load this page</h1><p class="meta">${esc(e.message)}. Check that the server is running.</p>`; });
+  }
   else if (view === 'live') { $('record').innerHTML = ''; loadLive(id); timer = setInterval(() => loadLive(id), 1000); }
   else { loadHome(); timer = setInterval(loadHome, 4000); }
 }
@@ -306,6 +366,11 @@ if (me.dial_in) {
   $('dial').hidden = false;
   $('dialNum').textContent = me.dial_in;
   $('dialNum').href = `tel:${me.dial_in.replace(/\s/g, '')}`;
+}
+if (me.personalities?.length) {
+  $('packs').hidden = false;
+  $('packs').insertAdjacentHTML('beforeend', me.personalities.filter(p => p !== 'default').map(p => `<label><input type="radio" name="pack" value="${esc(p)}" ${p === 'goose' ? 'checked' : ''}>
+    <span>${esc(p[0].toUpperCase() + p.slice(1))}</span></label>`).join(''));
 }
 route();
 </script>

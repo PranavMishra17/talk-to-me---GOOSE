@@ -10,10 +10,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from livekit import api
+from pydantic import BaseModel
 
 from proxy_core.calls import get_call, list_calls
 from proxy_core.config import ROOT, load_config, load_env
 from proxy_core.personality import list_packs
+from proxy_core.policy import TIERS
+from proxy_core.vault import _load, _rank, contacts as all_contacts
 
 load_env()
 MOCK = os.environ.get("GOOSE_MOCK") == "1"
@@ -21,6 +24,10 @@ MOCK_FILE = ROOT / "web" / "mock-state.json"
 AGENT_KIND = 4   # ParticipantInfo.Kind.AGENT
 app = FastAPI(title="Goose")
 LAST: dict[str, dict] = {}   # the panel keeps a finished call's summary after LiveKit closes the room
+
+
+class Talk(BaseModel):
+    pack: str | None = None   # None keeps the persona's own pack
 
 
 def _lk():
@@ -43,10 +50,10 @@ def live_state(name: str, floor_json: str, people: list) -> dict:
             "floor": {"holder": floor.get("holder"), "addressed_to": floor.get("addressed_to")}}
 
 
-def _first_persona() -> tuple[str, str]:
-    """(agent name, owner) of the first persona in config.yaml, the one Pranav talks to."""
+def _first_persona() -> tuple[str, str, str]:
+    """(agent name, owner, pack) of the first persona in config.yaml, the one Pranav talks to."""
     persona, p = next(iter(load_config()["personas"].items()))
-    return persona, p["owner"]
+    return persona, p["owner"], p["pack"]
 
 
 @app.get("/api/me")
@@ -68,18 +75,36 @@ async def call(id: str):
     return found
 
 
+@app.get("/api/contacts")
+async def contacts():
+    """Local contacts hold real numbers, so the masking happens here and the full number never reaches the browser."""
+    return [{"name": c["name"], "relationship": c.get("relationship"), "tier": c.get("tier"),
+             "numbers": ["\u2022\u2022\u2022\u2022 " + "".join(d for d in n if d.isdigit())[-4:] for n in c.get("numbers", [])]}
+            for c in all_contacts()]
+
+
+@app.get("/api/data")
+async def data():
+    """Everything Goose can draw on, with the tier code enforces: a record with no valid tier shows as private."""
+    return {name: [{**r, "tier": TIERS[_rank(r.get("tier"))]} for r in _load(name)]
+            for name in ("gmail", "slack", "calendar", "notes", "tasks")}
+
+
 @app.post("/api/talk")
-async def talk():
+async def talk(body: Talk = Talk()):
     """Pranav's private line: a room with only him and his agent. Phone rooms are `call-*`, these are `talk-*`."""
+    agent, owner, default_pack = _first_persona()
+    pack = body.pack or default_pack
+    if pack not in list_packs():
+        raise HTTPException(400, f"unknown personality {pack!r}")
     if MOCK:
         return {"room": "mock-room", "url": "", "token": "mock"}
-    agent, owner = _first_persona()
     name = f"talk-{os.urandom(4).hex()}"
     lk = _lk()
     try:
         await lk.room.create_room(api.CreateRoomRequest(name=name, empty_timeout=120))
         await lk.agent_dispatch.create_dispatch(api.CreateAgentDispatchRequest(
-            agent_name=agent, room=name, metadata=json.dumps({"mode": "owner"})))
+            agent_name=agent, room=name, metadata=json.dumps({"mode": "owner", "pack": pack})))
     finally:
         await lk.aclose()
     jwt = api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]) \
