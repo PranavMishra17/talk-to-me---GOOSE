@@ -22,10 +22,12 @@ No keys needed. This serves the page with fake data from `web/mock-state.json`:
 GOOSE_MOCK=1 uv run uvicorn app.api:app --port 8000     # PowerShell: $env:GOOSE_MOCK=1; uv run uvicorn app.api:app --port 8000
 ```
 
-Open http://localhost:8000 and press New call. Change only `web/`. The API is three calls:
+Open http://localhost:8000 and press New call. Change only `web/`. The API is five calls:
 
 | Call | Returns |
 |---|---|
+| `GET /api/rooms` | `{dial_in, rooms: [{room, people}]}`, newest first; the page follows the newest call |
+| `GET /api/tasks` | finished calls, newest first; shape of `web/mock-tasks.jsonl` |
 | `POST /api/rooms` | `{room}` |
 | `GET /api/rooms/{room}` | the shape of `web/mock-state.json`; poll every second |
 | `POST /api/rooms/{room}/token` with `{identity}` | `{url, token}` for LiveKit JS |

@@ -17,9 +17,10 @@
 </style>
 </head>
 <body>
-<!-- Teammates: restyle freely. The data comes only from the three fetch calls below. Shape: web/mock-state.json -->
+<!-- Teammates: restyle freely. All data comes from the fetch calls below. Shapes: web/mock-state.json, web/mock-tasks.jsonl -->
 <header>
   <h1>Goose</h1>
+  <span id="dial"></span>
   <input id="who" value="guest" aria-label="Your name">
   <button id="start">New call</button>
   <button id="join" disabled>Join with mic</button>
@@ -29,11 +30,24 @@
   <section><h2>In the room</h2><ul id="people"></ul></section>
   <section><h2>Floor</h2><p id="floor">-</p></section>
   <div id="agents" style="display:contents"></div>
+  <section style="grid-column:1/-1"><h2>Task log</h2><ul id="tasks"></ul></section>
 </main>
 <script type="module">
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 let room = new URLSearchParams(location.search).get('room');
+const pinned = !!room;   // ?room= stays put; otherwise follow the newest live call
+
+async function findRoom() {
+  const {dial_in, rooms} = await (await fetch('/api/rooms')).json();
+  $('dial').textContent = dial_in ? `Call ${dial_in}` : '';
+  if (!pinned && rooms.length && rooms[0].room !== room) { room = rooms[0].room; $('join').disabled = false; }
+}
+
+async function pollTasks() {
+  const list = await (await fetch('/api/tasks')).json();
+  $('tasks').innerHTML = list.map(t => `<li><b>${esc(t.persona)}</b>: ${esc(t.summary || '(no summary)')} <small>${esc(t.ended_at || '')}</small></li>`).join('') || '<li>No finished calls yet.</li>';
+}
 let follow = !room;   // no ?room= and no New call: show the newest phone call
 
 function agentPanel(a) {
@@ -77,7 +91,10 @@ $('join').onclick = async () => {
 
 if (room) $('join').disabled = false;
 setInterval(poll, 1000);
-poll();
+setInterval(pollTasks, 3000);
+setInterval(findRoom, 2000);
+findRoom().then(poll);
+pollTasks();
 </script>
 </body>
 </html>

@@ -10,3 +10,4 @@ SETUP.html
 .env.example
 .claude/
 .harness-lock/
+goose_tasks.jsonl

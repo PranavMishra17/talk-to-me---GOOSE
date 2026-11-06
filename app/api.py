@@ -17,6 +17,8 @@ from proxy_core.config import ROOT, load_env
 load_env()
 MOCK = os.environ.get("GOOSE_MOCK") == "1"
 MOCK_FILE = ROOT / "web" / "mock-state.json"
+TASKS = Path(os.environ.get("GOOSE_DATA_DIR") or ROOT) / "goose_tasks.jsonl"   # the room dies with the call; this does not
+MOCK_TASKS = ROOT / "web" / "mock-tasks.jsonl"
 AGENT_KIND = 4   # ParticipantInfo.Kind.AGENT
 app = FastAPI(title="Goose")
 LAST: dict[str, dict] = {}   # the panel keeps a finished call's summary after LiveKit closes the room
@@ -49,6 +51,37 @@ def live_state(name: str, floor_json: str, people: list) -> dict:
     floor = json.loads(floor_json) if floor_json else {}
     return {"room": name, "participants": participants, "agents": agents,
             "floor": {"holder": floor.get("holder"), "addressed_to": floor.get("addressed_to")}}
+
+
+def read_tasks(path: Path) -> list:
+    """Newest first. A half-written last line is skipped: the worker may be appending."""
+    out = []
+    for line in path.read_text(encoding="utf-8").splitlines() if path.exists() else []:
+        try:
+            out.append(json.loads(line))
+        except ValueError:
+            pass
+    return out[::-1]
+
+
+@app.get("/api/rooms")
+async def rooms():
+    """Live rooms, newest first. Phone calls create their own rooms, so this is how the page finds one."""
+    dial_in = os.environ.get("GOOSE_DIAL_IN", "")
+    if MOCK:
+        return {"dial_in": dial_in or "+1 555 0100", "rooms": [{"room": "mock-room", "people": 3}]}
+    lk = _lk()
+    try:
+        found = (await lk.room.list_rooms(api.ListRoomsRequest())).rooms
+    finally:
+        await lk.aclose()
+    found = sorted(found, key=lambda r: r.creation_time, reverse=True)
+    return {"dial_in": dial_in, "rooms": [{"room": r.name, "people": r.num_participants} for r in found]}
+
+
+@app.get("/api/tasks")
+async def tasks():
+    return read_tasks(MOCK_TASKS if MOCK else TASKS)
 
 
 @app.post("/api/rooms")
