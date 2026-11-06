@@ -53,7 +53,7 @@ def read_back(s: dict, owner: str) -> str:
 def summary(s: dict, owner: str, ended: str) -> str:
     what = _message(s) or "no message taken"
     said = "read back and confirmed" if s.get("confirmed") else "not read back"
-    return f"{s.get('name') or 'Unknown caller'} for {owner}: {what} ({said}). Ended: {ended}."
+    return f"{s.get('name') or 'Unknown caller'} for {owner}: {what} ({said}). Ended: {ended.rstrip(chr(46))}."
 
 
 if __name__ == "__main__":

@@ -178,6 +178,7 @@ async def session(a, log_path, proc):
         if pump:
             pump.cancel()
         await room.disconnect()
+        await asyncio.sleep(2)   # the caller hung up: let the worker finish before the room goes
         try:
             await lk.room.delete_room(api.DeleteRoomRequest(room=name))   # this is what stops the credit burn
         finally:

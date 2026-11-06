@@ -48,7 +48,6 @@ async function pollTasks() {
   const list = await (await fetch('/api/tasks')).json();
   $('tasks').innerHTML = list.map(t => `<li><b>${esc(t.persona)}</b>: ${esc(t.summary || '(no summary)')} <small>${esc(t.ended_at || '')}</small></li>`).join('') || '<li>No finished calls yet.</li>';
 }
-let follow = !room;   // no ?room= and no New call: show the newest phone call
 
 function agentPanel(a) {
   return `<section><h2>${esc(a.persona)} (for ${esc(a.owner)}, caller: ${esc(a.caller_tier)})</h2>
@@ -60,7 +59,6 @@ function agentPanel(a) {
 }
 
 async function poll() {
-  if (follow) room = (await (await fetch('/api/rooms')).json()).latest || room;
   if (!room) return;
   const r = await fetch(`/api/rooms/${room}`);
   if (!r.ok) { $('status').textContent = `Room ${room}: ${r.status}`; return; }
@@ -72,7 +70,6 @@ async function poll() {
 }
 
 $('start').onclick = async () => {
-  follow = false;
   room = (await (await fetch('/api/rooms', {method: 'POST', headers: {'content-type': 'application/json'}, body: '{}'})).json()).room;
   $('join').disabled = false;
   poll();

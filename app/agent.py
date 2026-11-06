@@ -7,6 +7,7 @@ import asyncio
 import json
 import logging
 import time
+from datetime import datetime
 from pathlib import Path
 
 from livekit import api, rtc
@@ -14,7 +15,7 @@ from livekit.agents import Agent, FlushSentinel, RunContext, StopResponse, funct
 
 from proxy_core import floor, policy, slots
 from proxy_core.agenda import CONFIRM_TOOLS, Agenda, is_bye, is_yes
-from proxy_core.config import load_config
+from proxy_core.config import TASKS, load_config
 from proxy_core.decider import decide
 from proxy_core.echo import EchoGuard
 from proxy_core.personality import confirm_line, farewell, load_pack, nudge_text, render_style, tool_filler
@@ -276,9 +277,7 @@ class GooseAgent(Agent):
         await self._hang_up()
 
     async def _hang_up(self):
-        ended = next((e[5:] for e in reversed(self.log) if e.startswith("end: ")), "call ended")
-        self.summary = slots.summary(self.agenda.slots, self.owner.title(), ended)
-        self.publish()                       # the last state is what the panel keeps once the room closes
+        self.record()
         if self.room:
             job = get_job_context()
             for p in list(self.room.remote_participants.values()):
@@ -291,6 +290,17 @@ class GooseAgent(Agent):
         """Write a summary to the owner's task log."""
         self.log.append(f"report[{channel}]: {text}")
         return "logged"
+
+    def record(self):
+        """Beat 6: the summary, once, for the panel and the task log. Also runs when the caller just hangs up."""
+        if self.summary or self.persona != self.lead:
+            return
+        ended = next((e[5:] for e in reversed(self.log) if e.startswith("end: ")), "caller hung up")
+        self.summary = slots.summary(self.agenda.slots, self.owner.title(), ended)
+        with TASKS.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({**self.state(), "room": self.room.name if self.room else "",
+                                "ended_at": datetime.now().astimezone().isoformat(timespec="seconds")}) + "\n")
+        self.publish()
 
     def _note(self, found):
         """S3-03: slots come from regex and tool arguments, never from an extra model call. True = a value changed."""

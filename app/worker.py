@@ -51,6 +51,7 @@ async def _run(ctx: JobContext, persona: str):
     session.on("user_input_transcribed", lambda ev: ev.is_final and agent.on_stt_final(ev.transcript))
     session.on("agent_state_changed", lambda ev: ev.old_state == "speaking" and agent.echo.ended(time.time()))
     session.on("user_state_changed", lambda ev: agent.on_user_state(ev.new_state))
+    session.on("close", lambda ev: agent.record())
     session.on("conversation_item_added", lambda ev: agent.publish())
     session.on("function_tools_executed", lambda ev: agent.publish())
 

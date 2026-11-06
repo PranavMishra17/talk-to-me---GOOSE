@@ -12,12 +12,11 @@ from fastapi.staticfiles import StaticFiles
 from livekit import api
 from pydantic import BaseModel
 
-from proxy_core.config import ROOT, load_env
+from proxy_core.config import ROOT, TASKS, load_env
 
 load_env()
 MOCK = os.environ.get("GOOSE_MOCK") == "1"
 MOCK_FILE = ROOT / "web" / "mock-state.json"
-TASKS = Path(os.environ.get("GOOSE_DATA_DIR") or ROOT) / "goose_tasks.jsonl"   # the room dies with the call; this does not
 MOCK_TASKS = ROOT / "web" / "mock-tasks.jsonl"
 AGENT_KIND = 4   # ParticipantInfo.Kind.AGENT
 app = FastAPI(title="Goose")
@@ -98,19 +97,6 @@ async def create_room(body: NewRoom):
     finally:
         await lk.aclose()
     return {"room": name}
-
-
-@app.get("/api/rooms")
-async def latest_call():
-    """The newest phone room, so the panel can follow a call it did not create."""
-    if MOCK:
-        return {"latest": None}
-    lk = _lk()
-    try:
-        rooms = [r for r in (await lk.room.list_rooms(api.ListRoomsRequest())).rooms if r.name.startswith("call-")]
-    finally:
-        await lk.aclose()
-    return {"latest": max(rooms, key=lambda r: r.creation_time).name if rooms else None}
 
 
 @app.get("/api/rooms/{name}")
