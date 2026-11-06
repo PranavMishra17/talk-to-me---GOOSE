@@ -29,8 +29,9 @@ def test_profile_stops_at_the_tier():
 
 def test_public_calendar_is_free_busy_only():
     assert all(set(e) == {"when", "busy"} for e in vault.get_calendar("public"))
-    friend = {e["when"]: e.get("title") for e in vault.get_calendar("friends")}
-    assert friend["Sat 7 Nov 09:00 AM to 10:00 AM".replace(" 0", " ")] is None     # cardiology stays a busy block
+    friend = {e["when"]: e.get("title") for e in vault.get_calendar("friends", today=date(2026, 11, 6))}
+    assert friend["tomorrow, 9 to 10 in the morning"] is None     # cardiology stays a busy block
+    assert friend["tomorrow, 7 to half past 9 in the evening"] == "Dinner with Sam, Lena and Rohan"
     assert "Dinner with Sam, Lena and Rohan" in friend.values()
 
 
