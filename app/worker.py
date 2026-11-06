@@ -63,7 +63,7 @@ def _save(ctx, session, agent):
     saved = []
     def write(*_):
         if not saved:
-            saved.append(calls.write_call(agent.call_record(ctx.job.id, turns())))
+            saved.append(calls.write_call(agent.call_record(f"console-{os.urandom(3).hex()}" if ctx.is_fake_job() else ctx.job.id, turns())))
             logger.info("CALL RECORD %s", saved[0])
     async def at_shutdown():
         write()
@@ -120,7 +120,8 @@ async def _run(ctx: JobContext, persona: str):
     session.on("user_input_transcribed", lambda ev: ev.is_final and agent.on_stt_final(ev.transcript))
     session.on("agent_state_changed", lambda ev: ev.old_state == "speaking" and agent.spoke_end(time.time()))
     session.on("user_state_changed", lambda ev: ev.old_state == "speaking" and setattr(agent, "human_stopped", time.time()))
-    session.on("user_state_changed", lambda ev: agent.on_user_state(ev.new_state))
+    if not ctx.is_fake_job():                              # someone typing in a console is not a silent caller
+        session.on("user_state_changed", lambda ev: agent.on_user_state(ev.new_state))
     session.on("close", lambda ev: agent.record())
     session.on("conversation_item_added", lambda ev: agent.publish())
     session.on("function_tools_executed", lambda ev: agent.publish())
@@ -139,7 +140,7 @@ async def _run(ctx: JobContext, persona: str):
         participant_kinds=[rtc.ParticipantKind.PARTICIPANT_KIND_SIP, rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD,
                            rtc.ParticipantKind.PARTICIPANT_KIND_AGENT],   # AGENT so the other agent's speech is visible
         audio_input=room_io.AudioInputOptions(noise_cancellation=_noise(cfg))))
-    for p in ctx.room.remote_participants.values():
+    for p in () if ctx.is_fake_job() else ctx.room.remote_participants.values():   # the console's room is a mock
         caller_id(p)
     agent.publish()
 

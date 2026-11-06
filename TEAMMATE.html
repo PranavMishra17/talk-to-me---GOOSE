@@ -22,7 +22,7 @@
 <p>You need Git and <a href="https://docs.astral.sh/uv/getting-started/installation/">uv</a>.</p>
 <pre><code>git clone https://github.com/PranavMishra17/talk-to-me---GOOSE.git
 cd talk-to-me---GOOSE
-uv sync
+uv sync --extra nc
 uv run pytest -q</code></pre>
 <p>The tests need no keys and spend nothing.</p>
 
@@ -33,14 +33,19 @@ uv run pytest -q</code></pre>
 <pre><code>$env:GOOSE_MOCK=1; uv run uvicorn app.api:app --port 8000</code></pre>
 <p>Open <a href="http://localhost:8000">http://localhost:8000</a>.</p>
 
-<h2>3. Optional: talk to Goose yourself</h2>
-<p>Make a free account at <a href="https://cloud.livekit.io">cloud.livekit.io</a> and create a project. Your own account has its own credits. Create a file named <code>.env</code> in the repo root with your own keys. It is gitignored: never commit it or paste keys into chat.</p>
+<h2>3. Talk to Goose in the terminal</h2>
+<p>Make a free account at <a href="https://cloud.livekit.io">cloud.livekit.io</a> and create a project. Your own account has its own credits. Create a file named <code>.env</code> in the repo root with your own keys. It is gitignored.</p>
 <pre><code>LIVEKIT_URL=wss://YOUR-PROJECT.livekit.cloud
 LIVEKIT_API_KEY=
 LIVEKIT_API_SECRET=
 OPENROUTER_API_KEY=</code></pre>
-<p>Then run the following and speak. Press Ctrl+C when done, because a running session spends credits.</p>
-<pre><code>uv run python -m app.worker console</code></pre>
+<p><code>OPENROUTER_API_KEY</code> is optional. Then run this, pick who is calling, and type:</p>
+<pre><code>uv run python scripts/call.py</code></pre>
+<p>Or skip the questions, and add <code>--voice</code> to use the microphone:</p>
+<pre><code>uv run python scripts/call.py --as owner
+uv run python scripts/call.py --as muhammad
+uv run python scripts/call.py --as unknown --pack jesse</code></pre>
+<p>Press Ctrl+C to hang up, because a running session spends credits. The call is saved.</p>
 <p>Do not run <code>app.worker dev</code> on Pranav's LiveKit project: calls go to whichever worker LiveKit picks.</p>
 
 <h2>4. Starter prompt for your coding agent</h2>
