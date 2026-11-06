@@ -143,7 +143,7 @@ async def session(a, log_path, proc):
     pack_voice = None
     lines = [(t, await speech(t, pack_voice)) for t in a.say]
     await wait_registered(log_path, proc)
-    name = f"harness-{uuid.uuid4().hex[:8]}"
+    name = f"{a.prefix}{uuid.uuid4().hex[:8]}"
     lk, room, res = api.LiveKitAPI(url, key, secret), rtc.Room(), {"room": name, "turns": []}
     pump = None
     try:
@@ -190,6 +190,7 @@ def main():
     ap.add_argument("--say", action="append")
     ap.add_argument("--persona", default="ash")
     ap.add_argument("--caller", default="")
+    ap.add_argument("--prefix", default="harness-", help="room name prefix; call- makes the web panel follow the room")
     ap.add_argument("--hold", type=float, default=0, help="stay silent this many seconds after the last line")
     ap.add_argument("--sip", action="store_true", help="join as a SIP participant, so hang-up and BVC run the phone path")
     ap.add_argument("--no-log", action="store_true", help="skip the dashboard log line")
