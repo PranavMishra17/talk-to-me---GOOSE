@@ -15,7 +15,7 @@ from proxy_core.calls import get_call, list_calls
 from proxy_core.config import ROOT, agent_name, load_config, load_env
 from proxy_core.personality import cards, list_packs
 from proxy_core.policy import TIERS
-from proxy_core.vault import _load, _rank, contacts as all_contacts
+from proxy_core.vault import OWNER, _load, _rank, contacts as all_contacts, owner_dir
 
 load_env()
 MOCK = os.environ.get("GOOSE_MOCK") == "1"
@@ -32,6 +32,7 @@ class Talk(BaseModel):
 
 class Join(BaseModel):
     name: str | None = None   # a contact's name; None joins as an unknown caller
+    owner: str = OWNER        # whose contact book the name is in
 
 
 class NewRoom(BaseModel):
@@ -43,6 +44,12 @@ class NewRoom(BaseModel):
 def _phone() -> str:
     """Only ever from the environment: the repo is public."""
     return os.environ.get("GOOSE_PHONE_NUMBER") or os.environ.get("GOOSE_DIAL_IN") or ("+1 555 0100" if MOCK else "")
+
+
+def _book(owner: str) -> list[dict]:
+    """One owner's contacts. Checked against config: this comes from a URL and becomes a folder name."""
+    home = owner_dir(owner) if owner in [p["owner"] for p in load_config()["personas"].values()] else None
+    return all_contacts(home) if home else []
 
 
 def _pack(name: str | None, default: str) -> str:
@@ -142,9 +149,9 @@ async def contacts():
 
 
 @app.get("/api/callers")
-async def callers():
+async def callers(owner: str = OWNER):
     """Join as: names only, the owner first."""
-    found = [{"name": c["name"], "owner": c.get("relationship") == "owner"} for c in all_contacts()]
+    found = [{"name": c["name"], "owner": c.get("relationship") == "owner"} for c in _book(owner)]
     return sorted(found, key=lambda c: not c["owner"])
 
 
@@ -226,7 +233,7 @@ async def open_room(body: NewRoom):
         raise HTTPException(400, f"no assistant for {body.owner!r}")
     pack = _pack(body.pack, personas[persona]["pack"])
     if MOCK:
-        return {"url": "/rooms/mock-room"}
+        return {"url": f"/rooms/mock-room?owner={body.owner}"}
     name = f"goose-{os.urandom(3).hex()}"
     lk = _lk()
     try:
@@ -236,7 +243,7 @@ async def open_room(body: NewRoom):
             metadata=json.dumps({"persona": body.owner, "pack": pack, "allowed": body.allowed})))
     finally:
         await lk.aclose()
-    return {"url": f"/rooms/{name}"}
+    return {"url": f"/rooms/{name}?owner={body.owner}"}
 
 
 @app.get("/rooms/{name}")
@@ -251,7 +258,7 @@ async def room_token(name: str, body: Join = Join()):
         return {"url": "", "token": "mock"}
     if not name.startswith("goose-"):
         raise HTTPException(403, "this room cannot be joined from the browser")
-    if body.name and body.name not in [c["name"] for c in all_contacts()]:
+    if body.name and body.name not in [c["name"] for c in _book(body.owner)]:
         raise HTTPException(400, "not in the contact book")
     # The token reaches the browser, so it names the contact and the worker looks the number up. Participants cannot
     # change their own attributes, so only this server can make someone a contact.

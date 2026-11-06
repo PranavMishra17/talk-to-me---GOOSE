@@ -105,6 +105,7 @@ const list = (rows, none) => rows.length ? `<ul>${rows.join('')}</ul>` : `<p cla
 const WAITING = {take_message: 'pass on a message', propose_slot: 'pencil in a time', summon_agent: 'bring in another assistant',
   request_permission_from_owner: 'ask the owner', end_call: 'end the call', read_back: 'the details read back'};
 const room = decodeURIComponent(location.pathname.split('/').pop());
+const owner = new URLSearchParams(location.search).get('owner') || 'pranav';
 const opened = Date.now();
 let health = {}, live = null, notice = null;   // a join problem stays up past the next poll
 let joined = null, owners = new Set(), speaking = null, ended = false, record = null;
@@ -128,15 +129,15 @@ function agentPanel(a) {
 
 function showCaller(s, humans) {
   const a = Object.values(s.agents)[0], slot = a?.slots?.name, tier = a?.caller_tier;
-  const owner = joined && owners.has(joined.name);
+  const isOwner = joined && owners.has(joined.name);
   const name = joined?.name || slot;
-  $('who').textContent = owner ? `${joined.name.split(' ')[0]}, the owner`
+  $('who').textContent = isOwner ? `${joined.name.split(' ')[0]}, the owner`
     : name ? name + (tier === 'public' && !joined?.name ? ', not verified' : '')
     : humans.length || joined ? 'Unknown caller' : 'Waiting for a caller';
-  const label = owner ? 'owner' : tier;
+  const label = isOwner ? 'owner' : tier;
   $('tier').hidden = !label || (!humans.length && !joined);
   $('tier').className = label || '';
-  $('tier').textContent = owner ? 'Owner' : `${cap(tier)} tier`;
+  $('tier').textContent = isOwner ? 'Owner' : `${cap(tier)} tier`;
   const wait = Object.values(s.agents).find(x => x.pending_confirm);
   $('confirm').hidden = !wait;
   if (wait) $('confirm').textContent = `${cap(wait.persona)} is waiting for a yes: ${WAITING[wait.pending_confirm] || wait.pending_confirm}`;
@@ -272,7 +273,7 @@ async function join() {
   try {
     joined = {name: $('as').value || null};
     const r = await fetch(`/rooms/${encodeURIComponent(room)}/token`, {method: 'POST', headers: {'content-type': 'application/json'},
-      body: JSON.stringify({name: joined.name})});
+      body: JSON.stringify({name: joined.name, owner})});
     if (!r.ok) throw new Error(`the server answered ${r.status}`);
     const {url, token} = await r.json();
     live = url ? await liveJoin(url, token) : mockJoin();
@@ -286,7 +287,7 @@ async function join() {
 }
 
 $('join').onclick = join;
-fetch('/api/callers').then(r => r.json()).then(list => {
+fetch(`/api/callers?owner=${encodeURIComponent(owner)}`).then(r => r.json()).then(list => {
   owners = new Set(list.filter(c => c.owner).map(c => c.name));
   $('as').append(...list.map(c => new Option(c.owner ? `${c.name} (owner)` : c.name, c.name)));
 }).catch(() => {});

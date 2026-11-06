@@ -41,7 +41,7 @@
 <p>Pranav's run sheet. Do section 1, then the mock pass, then one real pass. Ticks stay in this browser. <span id="count"></span></p>
 
 <div class="box warn">
-  <b>LiveKit is at 80% of its LLM calls-per-minute limit.</b> The mock pass in section 3 costs nothing, so repeat it as often as you like. Run section 4 once, in order, and don't repeat a step that passed.
+  <b>LiveKit is rate limiting us.</b> At 5:45 PM it answered 429 Too Many Requests for speech in both directions, and Goose stayed silent for the whole call. Stop every other test and harness before section 4 and before the demo. The mock pass in section 3 costs nothing, so repeat it as often as you like. Run section 4 once, in order, and don't repeat a step that passed.
 </div>
 
 <h2>1. Blocked on you</h2>
@@ -51,7 +51,6 @@
     <span class="expect"><b>Done when:</b> the number shows on the landing page under Call Goose.</span></div></li>
   <li><input type="checkbox"><div><b>Test a real mic.</b> Section 4 is the only place this gets proved. Claude's browser blocks mics, so every test so far used a silent fake one. Goose has never heard anyone through the web app.</div></li>
   <li><input type="checkbox"><div><b>Run it on localhost only.</b> There is no login, so anyone who can reach the server can join a room as you or any contact. Keep uvicorn on its default address, and don't pass <code>--host 0.0.0.0</code> or tunnel it. Project your own laptop's screen.</div></li>
-  <li><input type="checkbox"><div><b>Decide: does Jesse for Skyler need caller ID?</b> Skyler isn't in <code>config.yaml</code> yet (goose-single-2 is adding it). The form will list her with no more changes. But contacts only exist for Pranav, so everyone in a Skyler room joins as an unknown caller.</div></li>
 </ol>
 
 <h2>2. Start it</h2>
@@ -63,6 +62,8 @@
 <pre><code>uv run python -m app.worker dev</code></pre>
 <pre><code>$env:GOOSE_PERSONA='maya'; uv run python -m app.worker dev</code></pre>
 <pre><code>Remove-Item Env:GOOSE_MOCK -ErrorAction SilentlyContinue; uv run uvicorn app.api:app --port 8000</code></pre>
+<p>Jesse for Skyler needs her own worker, for step 4.9:</p>
+<pre><code>$env:GOOSE_PERSONA='jesse'; uv run python -m app.worker dev</code></pre>
 <p>The Maya terminal is needed only for step 4.6 and for rooms opened for Rohan. Open everything in Chrome at <code>http://localhost:8000</code>. Browsers allow mics only on localhost or https, so a phone on your Wi-Fi can't use the mic.</p>
 
 <h2>3. Mock pass</h2>
@@ -113,7 +114,9 @@
     <span class="expect"><b>Expect:</b> Goose says Maya isn't allowed into the room, and no Maya appears. Only a unit test has proved this.</span></div></li>
   <li><input type="checkbox"><div><b>4.8 In <a href="http://localhost:8000/app">/app</a>, pick Jarvis and press the egg. Talk, then End talk.</b>
     <span class="expect"><b>Expect:</b> your words and Goose's appear as bubbles, the state line follows who is talking, Jarvis's voice, and End returns Home. The talk then appears in the history as "You and Goose".</span></div></li>
-  <li><input type="checkbox"><div><b>4.9 Call the number from your phone with <code>/app</code> open.</b>
+  <li><input type="checkbox"><div><b>4.9 Open a room for Skyler. The stand-in jumps to Jesse. Join as Marie Schrader.</b>
+    <span class="expect"><b>Expect:</b> the picker lists Skyler's contacts, not yours, and Jesse greets Marie by name at Family tier. Needs the Jesse terminal. <b>Not tested with an agent yet.</b></span></div></li>
+  <li><input type="checkbox"><div><b>4.10 Call the number from your phone with <code>/app</code> open.</b>
     <span class="expect"><b>Expect:</b> Goose answers, and the banner appears within about 4 seconds and opens the live panel. After you hang up, the call is in the history with its transcript. Needs step 1.1 and the dispatch rule pointing at <code>goose</code>. <b>Never tested from the web app.</b></span></div></li>
 </ol>
 
@@ -121,6 +124,7 @@
 <table>
   <tr><th>You see</th><th>Do this</th></tr>
   <tr><td>"Agent offline"</td><td>The worker isn't running. Run the command shown and open a new room; a room opened while it was off stays empty. Rooms for Rohan need the Maya terminal.</td></tr>
+  <tr><td>Goose says nothing, and "Goose is listening" stays up</td><td>Look in the worker terminal for <code>429 Too Many Requests</code>. That's the LiveKit limit, not a code fault. Stop everything else using the project, wait a minute, open a new room. Check limits at cloud.livekit.io.</td></tr>
   <tr><td>"Can't reach the room"</td><td>The room has closed or never existed. Open a new one.</td></tr>
   <tr><td>"Backend not running: POST /rooms"</td><td>uvicorn is down or crashed. Check its terminal. An owner or personality the server doesn't know also shows this.</td></tr>
   <tr><td>"Allow the microphone"</td><td>Click the icon at the left of Chrome's address bar, allow the mic, join again.</td></tr>
@@ -132,9 +136,9 @@
 <details>
   <summary>What Claude has already proved, and what it hasn't</summary>
   <h3>Proved with a real agent and a silent fake mic</h3>
-  <p>Form to room to agent, Join and Leave, Muhammad greeted by name after a 15 second wait, Unknown asked, owner briefing using a fake owner contact, TARS and Jarvis packs recorded on real calls, no numbers in tokens or on the page, the empty, offline and error states, and the stage view with a link to the call's record.</p>
+  <p>Form to room to agent, Join and Leave, Muhammad greeted by name after a 15 second wait, Unknown asked, owner briefing using a fake owner contact, TARS and Jarvis packs recorded on real calls, no numbers in tokens or on the page, the empty, offline and error states, the stage view's caller, tier and record link, and Skyler in the form with Jesse as her default.</p>
   <h3>Not proved</h3>
-  <p>Anything that needs a real voice: Goose hearing speech, your side of the live transcript, tier refusals out loud, and a spoken summon. Also audio you can actually hear, phone calls reaching the web app, your real owner contact, and Jesse for Skyler.</p>
+  <p>Anything that needs a real voice: Goose hearing speech, your side of the live transcript, tier refusals out loud, and a spoken summon. Also the room page's live transcript with a real agent (the one check hit the 429), audio you can actually hear, phone calls reaching the web app, your real owner contact, and a Skyler room with an agent.</p>
 </details>
 </main>
 <script>

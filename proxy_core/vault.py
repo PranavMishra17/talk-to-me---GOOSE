@@ -100,9 +100,10 @@ def contacts(dir=DATA) -> list[dict]:
     return list({c["name"]: c for c in _load("contacts", dir) + local}.values())
 
 
-def number_for(name: str | None, dir=DATA) -> str | None:
+def number_for(name: str | None, owner: str = OWNER) -> str | None:
     """The web Join as names a contact. The number stays on the server: an attribute would reach every browser in the room."""
-    c = next((c for c in contacts(dir) if c["name"] == name), None)
+    home = owner_dir(owner)
+    c = next((c for c in contacts(home) if c["name"] == name), None) if home else None
     return c["numbers"][0] if c and c.get("numbers") else None
 
 
