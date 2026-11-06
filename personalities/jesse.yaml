@@ -11,6 +11,8 @@ tool_filler:
   - "Hang on."
   - "Lemme check."
   - "One sec."
+hangup:
+  - "Nah, we're done here. Peace."
 farewell:
   - "Later!"
   - "Catch you later."

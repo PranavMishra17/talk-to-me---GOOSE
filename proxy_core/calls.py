@@ -74,13 +74,15 @@ def outcome(who: str, log: list[str], slots: dict, turns: list[dict]) -> tuple[s
             actions.append(f"Decide if {first} may know: {entry[12:]}")
     ended = next((e[5:] for e in reversed(log) if e.startswith("end: ")), "")
     said = _message(slots) if slots.get("details") else next((e.split(": ", 1)[1] for e in log if e.startswith("message from ")), "")
-    if said:
+    if ended.startswith("Ended by "):            # the agent hung up on them: that is the headline in the call history
+        summary = f"{ended}."
+    elif said:
         summary = f"{first} left a message: {said.rstrip(' .?!')}."
     elif ended and ended not in _CODE_ENDS:      # end_call's summary, from the model that heard the whole call
         summary = ended
     else:
         summary = f"{first} said: {max(heard, key=len)}" if heard else f"{first} hung up without a word."
-    status = "needs_you" if actions else "info" if not heard or not ended or ended in _BAD_ENDS else "resolved"
+    status = "needs_you" if actions else "info" if not heard or not ended or ended in _BAD_ENDS or ended.startswith("Ended by ") else "resolved"
     return summary, status, [{"text": a, "done": False} for a in actions]
 
 

@@ -59,6 +59,11 @@ def tool_filler(pack: dict, n: int) -> str:
     return lines[n % len(lines)]
 
 
+def hangup(pack: dict) -> str:
+    """Spoken by code when the agent ends the call on a caller."""
+    return (pack.get("hangup") or pack["farewell"])[0]
+
+
 def farewell(pack: dict, n: int = 0) -> str:
     """Spoken by code before end_call: several Inference models hang up silently."""
     lines = pack["farewell"]

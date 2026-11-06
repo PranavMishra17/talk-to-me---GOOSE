@@ -43,3 +43,8 @@ def test_seeds_have_the_web_shape():
     for path in calls.SEED.glob("*.json"):
         r = json.loads(path.read_text(encoding="utf-8"))
         assert set(r) == keys and r["outcome"] in calls.OUTCOMES
+
+
+def test_a_hang_up_is_the_headline():
+    summary, status, _ = calls.outcome("Unknown caller", ["end: Ended by Jesse: caller kept pushing"], {}, [{"who": "caller", "text": "x"}])
+    assert summary == "Ended by Jesse: caller kept pushing." and status == "info"

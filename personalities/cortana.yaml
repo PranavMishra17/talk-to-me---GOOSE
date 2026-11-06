@@ -12,6 +12,8 @@ tool_filler:
   - "Checking."
   - "Running that now."
   - "One moment."
+hangup:
+  - "We're done here. Ending this call."
 farewell:
   - "Logged. Goodbye."
   - "That's handled. Goodbye."

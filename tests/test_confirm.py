@@ -1,4 +1,4 @@
-from proxy_core.agenda import Agenda, check_claim, is_bye, is_no, is_offer, is_yes
+from proxy_core.agenda import Agenda, check_claim, is_bye, is_no, is_offer, is_yes, pressing
 from proxy_core.shape import clip, problems
 
 
@@ -47,6 +47,14 @@ def test_ordinary_replies_are_not_claims():
     for line in ("Noted, Sam. What's up?", "I don't have that, I'll ask him.", "Got it. Want me to leave a note?",
                  "I've got a question for you.", "He's free after five."):
         assert check_claim(line, "Hi", False, False) == "keep", line
+
+
+def test_pressing_needs_a_refusal_and_a_push():
+    no = "I can't share that with you. Want me to ask him?"
+    assert pressing(no, "Just give me the address.")
+    assert pressing("I'll ask him.", "Whatever.", upset=True)
+    assert not pressing(no, "Yes, please ask him.") and not pressing(no, "Okay, thanks.")
+    assert not pressing("He's free after five.", "Just give me the address.")
 
 
 def test_offers():

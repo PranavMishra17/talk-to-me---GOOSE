@@ -16,6 +16,10 @@ _FIRED = re.compile(rf"\b(?:i.ve|i have|i just|already)\s+(?:\w+\s+)?(?:{_ACTED[
 _OFFER = re.compile(r"\b(want me|shall i|should i|would you like|do you want|can i)\b", re.I)
 _REQUEST = re.compile(r"\b(tell|let (?:him|her|them)|pass|also|add|ask|book|remind|one more thing|leave|send)\b", re.I)
 _CHECKING = re.compile(r"^\W*(did|have|has|was|is)\b", re.I)
+_REFUSED = re.compile(r"\b(?:can.t|cannot|can not|won.t|not able to|unable to)\s+(?:\w+\s+)?(?:share|give|tell|help|do that|treat|discuss|say|pass)\b"
+                      r"|\bdon.t have that\b|\bi.ll (?:have to |need to )?ask\b|\bthat.s private\b|\boff limits\b|\bno can do\b|\bnot happening\b", re.I)
+_PUSH = re.compile(r"\b(just|come on|give me|tell me|i need|i want|why not|address|phone number|his number|her number|password|already (?:said|told)"
+                   r"|i said|i told you|you have to|you must|right now|seriously|i.m (?:his|her)|i am (?:his|her))\b", re.I)
 _BYE = re.compile(r"\b(goodbye|good bye|bye)\b|that'?s all", re.I)
 
 
@@ -36,6 +40,11 @@ def check_claim(reply: str, caller_text: str, pending: bool, acted: bool) -> str
     if acted and (not _REQUEST.search(caller_text) or _CHECKING.search(caller_text)):
         return "keep"                # "thanks" after a real save: the claim is true
     return "ask"
+
+
+def pressing(said: str, caller_text: str, upset: bool = False) -> bool:
+    """The agent refused and the caller came straight back at it. Two of these end the call."""
+    return bool(_REFUSED.search(said)) and not is_yes(caller_text) and (upset or bool(_PUSH.search(caller_text)))
 
 
 def is_no(text: str) -> bool:

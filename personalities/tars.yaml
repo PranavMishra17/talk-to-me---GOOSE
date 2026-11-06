@@ -12,6 +12,8 @@ tool_filler:
   - "Checking."
   - "Querying."
   - "Stand by."
+hangup:
+  - "Honesty setting at one hundred percent: we're done here. Goodbye."
 farewell:
   - "Logged. Goodbye."
   - "Conversation closed. Goodbye."
