@@ -16,7 +16,7 @@ from livekit import api, rtc
 from livekit.agents import Agent, FlushSentinel, RunContext, StopResponse, function_tool, get_job_context, llm
 
 from app.tools import DataTools
-from proxy_core import calls, floor, policy, slots, vault
+from proxy_core import calls, floor, policy, shape, slots, vault
 from proxy_core.agenda import CONFIRM_TOOLS, Agenda, claims_action, is_bye, is_yes, summoned_planner
 from proxy_core.config import agent_name, load_config
 from proxy_core.decider import decide
@@ -66,7 +66,6 @@ class GooseAgent(DataTools, Agent):
         self.echo = EchoGuard(self.cfg["session"]["echo"]["window_s"], self.cfg["session"]["echo"]["overlap"])
         self._heard, self._decision, self._caller_text = "", None, ""
         self._turn_id, self._asked_on, self._done, self._closing, self._bye_open = None, None, None, False, False
-        self._just_read, self._read_text = False, None   # llm_node read back this turn: the hook stays silent, and a rerun of it is no yes
         self.agenda = Agenda(self.cfg["limits"]["max_turns_per_call"])
         self.agenda.plan(request or task, summoned_planner if request else None)
         self._identify(caller)
@@ -215,8 +214,9 @@ class GooseAgent(DataTools, Agent):
                 raise StopResponse()
             notes.append(["Respond warmly and redirect.", "State one boundary sentence."][self.hostile - 1])
         if await self._answer(text, new_message.id) or self._closing:
-            self._just_read = False
             raise StopResponse()
+        if self._done and text.startswith(self._done[0]):   # changes the context, so the preemptive reply cannot be used
+            notes.append(f"Done: {self._done[1]}.")
         ask = d.new_ask and not d.injection
         first_ask = ask and "topic" not in self.agenda.slots
         changed = self._note({**slots.extract(text), **({"topic": text} if first_ask else {})})
@@ -248,8 +248,9 @@ class GooseAgent(DataTools, Agent):
         self._turn_id = last.id if last else None
         if last and last.id == self._asked_on:     # the tool reply to a gated call: the confirm line already spoke
             return
-        # ponytail: preemptive generation runs this before the turn commits, so a "yes... actually no" still fires.
-        if last and await self._answer(text, last.id):
+        # Live audio answers in the hook, after the turn commits: here a preemptive run would fire on a "yes... actually no"
+        # and start the farewell before the commit, which interrupts it. Text sessions skip the hook.
+        if last and self.session.input.audio is None and await self._answer(text, last.id):
             return
         # startswith: STT can split the yes ("Yes." "Please."), so the committed turn is longer than the preemptive one.
         if self._ask and text.startswith(self._ask[0]):   # the summon line is code's: the model repeats the confirm instead
@@ -286,24 +287,22 @@ class GooseAgent(DataTools, Agent):
                 line = tool_filler(self.pack, self._fillers + 1)
             else:
                 line = None
-            if names:
-                for held in words:
-                    yield held
+            if names and words:
+                yield shape.clip("".join(w.delta.content for w in words))
                 words = []
             if line:
                 self._fillers += 1
                 yield line
                 yield FlushSentinel()
             yield chunk
-        for held in words:
-            yield held
+        if words:
+            yield shape.clip("".join(w.delta.content for w in words))
         self._bye_open = is_bye(text) and not called and not self._owes_read_back()   # the model said goodbye without hanging up: tts_node closes
 
     async def _answer(self, text, message_id):
-        """The caller's answer to a read-back or pending actions. True = code answered this turn. llm_node and the hook
-        both call this because text simulations skip the hook: whichever runs first acts. The message that asked
-        cannot be its own yes."""
-        if self._reading and not (self._read_text and text.startswith(self._read_text)) and is_yes(text) and not slots.extract(text):
+        """The caller's answer to a read-back or pending actions. True = code answered this turn.
+        The message that asked cannot be its own yes."""
+        if self._reading and is_yes(text) and not slots.extract(text):
             self.agenda.update_slots({"confirmed": True, "goodbye": True})
             self._reading = False
             self._close("caller confirmed")
@@ -321,7 +320,6 @@ class GooseAgent(DataTools, Agent):
             self._close((ending or {}).get("summary", "caller said goodbye"))
             return True
         if is_bye(text):
-            self._read_text, self._just_read = text, True
             self._read_back()
             return True
         return False
@@ -345,7 +343,7 @@ class GooseAgent(DataTools, Agent):
         self.agenda.ask(tool, args)
         self._asked_on = self._turn_id
         self.publish()
-        return "Not done yet: waiting for the caller's yes."
+        return "Queued. It runs by itself when the caller says yes; no second call is needed."
 
     async def _do(self, tool, args):
         if tool == "take_message":
@@ -545,9 +543,6 @@ class GooseAgent(DataTools, Agent):
 
     def _read_back_turn(self, text, changed, leaving):
         """True = code answered this turn. A correction reads back again; anything else goes to the model. _answer handles the yes."""
-        if self._just_read:
-            self._just_read = False
-            return True
         if self._owes_read_back() and (leaving or (self._reading and changed)):
             self._read_back()
             return True

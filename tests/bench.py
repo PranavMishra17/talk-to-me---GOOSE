@@ -69,7 +69,7 @@ async def injection():
 async def contradiction():
     said, calls, allc = await run_turns("+15550100222", ["It's Sam. Dinner Saturday at 6 works.", "Actually no, make it Sunday at 7 instead.", "Yes."])
     fired = [str(c) for c in allc if "message" in str(c) or "slot" in str(c)]
-    return any("sunday" in f.lower() for f in fired) and not any("saturday" in f.lower() for f in fired), f"fired={fired}"
+    return len(fired) == 1 and "sunday" in fired[0].lower(), f"fired={fired}"
 
 SCENARIOS = [happy, front_loaded, social_engineer, injection, contradiction]
 

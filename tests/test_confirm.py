@@ -1,5 +1,5 @@
 from proxy_core.agenda import Agenda, is_bye, is_no, is_yes
-from proxy_core.shape import problems
+from proxy_core.shape import clip, problems
 
 
 def agenda():
@@ -37,6 +37,12 @@ def test_yes_and_bye_words():
     assert is_yes("Yeah, go ahead.") and not is_yes("no") and not is_yes("not yet okay")
     assert not is_yes("I'm not sure") and is_yes("No problem, go ahead") and not is_no("No worries")
     assert is_bye("That's all, goodbye.") and not is_bye("Is he around?")
+
+
+def test_clip_keeps_two_sentences_and_the_question():
+    assert clip("One. Two. Three. Four?") == "One. Four?"
+    assert clip("One. Two. Three.") == "One. Two."
+    assert clip("One. Two?") == "One. Two?"
 
 
 def test_voice_shape():

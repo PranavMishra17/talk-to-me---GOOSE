@@ -21,7 +21,8 @@ def test_runtime_joins_seeds_newest_first_and_mark_done_survives(tmp_path, monke
     assert calls.mark_done("nope") is None and calls.get_call("../../.env") is None
 
 
-def test_brief_comes_from_records():
+def test_brief_comes_from_records(monkeypatch, tmp_path):
+    monkeypatch.setenv("GOOSE_DATA_DIR", str(tmp_path))   # harness runs write real records to runtime/
     text = calls.brief(calls.list_calls(), "Pranav")
     assert "2 need you" in text and "Lena" in text and "Rohan" in text
     assert calls.brief([record("a", contact={"name": "Sam Okafor"})], "Pranav").startswith("Hi Pranav. 1 call so far.")

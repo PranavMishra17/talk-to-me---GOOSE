@@ -8,6 +8,14 @@ def sentences(text: str) -> int:
     return len([s for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s])
 
 
+def clip(text: str) -> str:
+    """At most two spoken sentences, keeping a closing question: models overrun the prompt's limit."""
+    parts = [s for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s]
+    if len(parts) <= 2:
+        return text
+    return " ".join([parts[0], parts[-1] if parts[-1].endswith("?") else parts[1]])
+
+
 def options(text: str) -> int:
     """Rough count of offered options in the longest "a, b, or c" run; 0 when nothing is offered."""
     best = 0
