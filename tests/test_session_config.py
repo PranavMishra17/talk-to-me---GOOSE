@@ -29,3 +29,13 @@ def test_stt_zeroes_min_delay():
 def test_bad_mode():
     with pytest.raises(ValueError):
         turn_kwargs(cfg("x"))
+
+
+def test_own_keys_is_off_and_one_line_moves_all_three(tmp_path):
+    from proxy_core.config import ROOT, load_config
+    p = load_config()["providers"]
+    assert not p["own_keys"] and {p[k]["kind"] for k in ("stt", "llm", "tts")} == {"livekit_inference"}
+    on = tmp_path / "config.yaml"
+    on.write_text((ROOT / "config.yaml").read_text(encoding="utf-8").replace("own_keys: false", "own_keys: true"), encoding="utf-8")
+    p = load_config(on)["providers"]
+    assert [p[k]["kind"] for k in ("stt", "llm", "tts")] == ["cartesia", "openrouter", "cartesia"]

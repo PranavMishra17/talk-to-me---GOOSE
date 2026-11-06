@@ -2,8 +2,11 @@
 # unknown kinds raise at startup. `mock` works for every provider and touches no network.
 # Always launch with `dev`: self-hosted `start` silently drops adaptive interruption to VAD.
 providers:
-  stt: {kind: cartesia, model: ink-2, language: en}                       # own key: LiveKit Inference answers 429. stt_inference is the way back.
-  stt_inference:
+  # The one switch. true runs stt_own, llm_own and tts_own instead of stt, llm and tts, for when LiveKit Inference answers 429.
+  # Needs OPENROUTER_API_KEY and CARTESIA_API_KEY in .env. Proved in a real room on 6 Nov: first audio 0.84 to 2.04 s.
+  own_keys: false
+  stt_own: {kind: cartesia, model: ink-2, language: en}
+  stt:
     kind: livekit_inference
     model: deepgram/nova-3             # won the A/B on 6 Nov: 228 ms finalize p50 against the starter's 365 ms
     language: en
@@ -12,14 +15,14 @@ providers:
   stt_starter: {kind: livekit_inference, model: assemblyai/universal-3-6-pro, language: en}   # starter default, lost the A/B on latency
   stt_alt: {kind: livekit_inference, model: assemblyai/universal-3-5-pro}   # on Inference, no BYO key. 66 ms finalize, best telephony WER.
   # scripts/model_ab.py, 6 Nov, gate on, 24 turns each, end of stream p50 / p90: gemma 224-230 / 576-1134 ms, 0 bad.
-  llm: {kind: openrouter, model: google/gemini-2.5-flash-lite}           # our OpenRouter key: LiveKit's LLM credit ran out on 6 Nov. Copy llm_inference here to go back.
-  llm_inference: {kind: livekit_inference, model: google/gemma-4-31b-it} # starter default, won the A/B on Inference
+  llm: {kind: livekit_inference, model: google/gemma-4-31b-it}           # starter default, kept: no challenger won p50 by 15%
+  llm_own: {kind: openrouter, model: google/gemini-2.5-flash-lite}
   llm_flash_lite: {kind: livekit_inference, model: google/gemini-2.5-flash-lite}   # 245 / 885 ms, 0 bad
   llm_3_1: {kind: livekit_inference, model: google/gemini-3.1-flash-lite}          # 663 / 843 ms, 0 bad
   llm_3_5: {kind: livekit_inference, model: google/gemini-3.5-flash-lite}          # 373 ms TTFT, earlier run. Not gemini-3.8-flash (2.3 s).
   llm_tools: {enabled: false, model: openai/gpt-5.6-luna}                # optional per-turn route for tool turns; off, nothing reads it yet
-  tts: {kind: cartesia, model: sonic-3.5, language: en}                  # own key, same voice ids. tts_inference is the way back.
-  tts_inference: {kind: livekit_inference, model: cartesia/sonic-3.5, language: en}   # won the A/B on 6 Nov: 160 ms first audio p50 against Fish's 66
+  tts: {kind: livekit_inference, model: cartesia/sonic-3.5, language: en}   # won the A/B on 6 Nov: 160 ms first audio p50 against Fish's 66
+  tts_own: {kind: cartesia, model: sonic-3.5, language: en}              # same voice ids as Inference
   # starter default, lost the A/B on latency; on Inference, no key. Copy into tts to use it. expressive sets AgentSession(expressive=True):
   # the LLM adds delivery tags Fish renders. Voice: the pack's fish_voice, one per pack, so Goose and Maya stay distinct on Fish too.
   tts_fish: {kind: livekit_inference, model: fishaudio/s2.1-pro, language: en, expressive: true}

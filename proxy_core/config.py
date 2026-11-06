@@ -33,6 +33,9 @@ def load_env() -> None:
 
 def load_config(path: str | Path = ROOT / "config.yaml") -> dict:
     cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    p = cfg.get("providers", {})
+    if p.get("own_keys"):      # one line moves all three, so nothing reads a half-switched stack
+        p.update({k: p[f"{k}_own"] for k in ("stt", "llm", "tts")})
     validate(cfg)
     return cfg
 
