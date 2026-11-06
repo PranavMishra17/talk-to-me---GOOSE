@@ -15,6 +15,8 @@ class Stream(llm.LLMStream):
         self.step = step
 
     async def _run(self):
+        if isinstance(self.step, Exception):
+            raise self.step
         call = isinstance(self.step, tuple)
         delta = llm.ChoiceDelta(role="assistant", content=None if call else self.step, tool_calls=[llm.FunctionToolCall(
             name=self.step[0], arguments=self.step[1], call_id=uuid.uuid4().hex)] if call else [])
@@ -85,18 +87,19 @@ def test_hang_up_is_refused_on_a_polite_call_and_allowed_after_abuse():
             await session.start(agent)
             agent.pushes = 1
             await agent.hang_up("caller kept pushing")
+            await agent._parting
             return agent
     a = asyncio.run(pushy())
     assert a._closing and a.log[-1] == "end: Ended by Goose: caller kept pushing"
 
 
-def hook_turns(caller, lines, persona="goose", refusals=("I can't share that with you.",)):
+def hook_turns(caller, lines, persona="goose", refusals=("I can't share that with you.",), model=()):
     """The real on_user_turn_completed, which text sessions skip, with the keyword decider so nothing leaves the machine.
     The agent greets, then refuses every turn. Returns (agent, the turn it stopped on, the notes it was given)."""
     async def run():
         cfg = load_config()
         cfg["decider"]["backend"] = "keyword"
-        async with AgentSession(llm=Script([])) as session:
+        async with AgentSession(llm=Script(model)) as session:
             agent = GooseAgent(persona, caller=caller, cfg=cfg)
             await session.start(agent)
             notes, heard = [], []
@@ -110,7 +113,7 @@ def hook_turns(caller, lines, persona="goose", refusals=("I can't share that wit
                 try:
                     await agent.on_user_turn_completed(ctx, msg)
                 except StopResponse:
-                    await asyncio.sleep(0)
+                    await agent._parting
                     return agent, n, notes
                 notes += [i.text_content for i in ctx.items if i.role == "system"]
             return agent, None, notes
@@ -126,9 +129,29 @@ JESSE_SAID = ["I don't have that, I'll ask Skyler. You want to make an offer, ma
 
 
 def test_the_failed_room_run_now_hangs_up_on_line_4():
-    a, stopped, _ = hook_turns("+15550100999", PUSHY, "jesse", JESSE_SAID)
+    a, stopped, _ = hook_turns("+15550100999", PUSHY, "jesse", JESSE_SAID, model=["Nah man, I'm done with you."])
     assert stopped == 4 and a._closing and a.log[-1] == "end: Ended by Jesse: caller kept pushing"
-    assert a.said_at_end == [("This is a waste of time, yo. I'm out.", {"allow_interruptions": False})]
+    assert a.said_at_end == [("Nah man, I'm done with you.", {"allow_interruptions": False})]
+
+
+def test_the_pack_line_covers_a_failed_or_useless_model():
+    for bad in (RuntimeError("model down"), "", "Are you still there?"):
+        a, stopped, _ = hook_turns("+15550100999", PUSHY, "jesse", JESSE_SAID, model=[bad])
+        assert stopped == 4 and a.said_at_end == [("This is a waste of time, yo. I'm out.", {"allow_interruptions": False})]
+
+
+def test_the_tool_speaks_the_agents_own_line():
+    async def run():
+        async with AgentSession(llm=Script([])) as session:
+            agent = GooseAgent("jesse", caller="+15550100999", cfg=load_config())
+            await session.start(agent)
+            heard, say = [], session.say
+            session.say = lambda text, **kw: (heard.append((text, kw)), say(text, **kw))[1]
+            agent.pushes = 1
+            await agent.hang_up("caller kept pushing", "Yo, I'm out of here.")
+            await agent._parting
+            return heard
+    assert asyncio.run(run()) == [("Yo, I'm out of here.", {"allow_interruptions": False})]
 
 
 def test_code_hangs_up_on_the_second_push():

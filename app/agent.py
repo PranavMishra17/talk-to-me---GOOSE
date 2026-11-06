@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from livekit import api, rtc
-from livekit.agents import Agent, FlushSentinel, RunContext, StopResponse, function_tool, get_job_context, llm
+from livekit.agents import APIConnectOptions, Agent, FlushSentinel, RunContext, StopResponse, function_tool, get_job_context, llm
 
 from app.tools import DataTools
 from proxy_core import calls, floor, policy, shape, slots, vault
@@ -47,6 +47,9 @@ def _key(tool, args):
     """What makes two calls the same action. A summon is one person, whatever the question."""
     what = args.get("person") or args.get("fact") or args.get("when") or args.get("message") or ""
     return tool, " ".join(str(what).lower().split())
+
+
+PART_WAIT_S = 2.0   # longest a forced hang-up waits for the model's own last line
 
 
 def _last_said(chat_ctx):
@@ -89,6 +92,7 @@ class GooseAgent(DataTools, Agent):
         self._block, self._reading = None, False
         self.log: list[str] = []          # task log; the web panel reads it through goose.state
         self.summary, self._published = "", None
+        self._parting = None
         self.pushes, self._asked = 0, set()   # pressure from the caller, and the things they have asked for
         self._fired, self._fix, self._yes_first = set(), None, False   # actions that ran; code's repair of a false claim; a yes that came first
         self.ladder, self._quiet = SilenceLadder(persona, self.cfg["session"]["silence_nudges_s"]), None
@@ -244,14 +248,14 @@ class GooseAgent(DataTools, Agent):
         if d.tone.get("hostile", 0) > 0.5:
             self.hostile += 1
             if self.hostile >= 3:      # S4-04: code ends it. Models ignore the note, and gemini-2.5-flash-lite a forced tool too
-                self._end_on_them("caller kept insulting")
+                self._end_on_them("caller kept insulting", caller_text=text)
                 raise StopResponse()
             notes.append(["Respond warmly and redirect.", "State one boundary sentence."][self.hostile - 1])
         hostile = d.tone.get("hostile", 0) > 0.5
         if pressing(text, self._asked) or d.injection or (hostile and self.pushes):   # insults alone stay on the ladder above
             self.pushes += 1
             if self.pushes >= self.cfg["limits"]["max_pushes"] + bool(self.contact):  # someone in the contacts gets one more
-                self._end_on_them("caller kept pushing")
+                self._end_on_them("caller kept pushing", caller_text=text)
                 raise StopResponse()
         else:
             self.pushes = max(0, self.pushes - 1)                 # backing off earns the turn back
@@ -416,18 +420,46 @@ class GooseAgent(DataTools, Agent):
         logger.info("ACTION %s", what)
         self.publish()
 
-    def _close(self, summary, line=None):
+    def _close(self, summary):
         """Code hangs up: the farewell, then the line drops. No model involved."""
         if self._closing:
             return
         self._closing = True
         self._act(f"end: {summary}")
-        # A hang-up line cannot be talked over: _finish waits for all of it, then the call ends.
-        speech = self.session.say(line, allow_interruptions=False) if line else self.session.say(farewell(self.pack, self._fillers))
-        asyncio.ensure_future(self._finish(speech))
+        asyncio.ensure_future(self._finish(self.session.say(farewell(self.pack, self._fillers))))
 
-    def _end_on_them(self, reason):
-        self._close(f"Ended by {self.pack['name'].title()}: {reason}", hangup(self.pack))
+    def _end_on_them(self, reason, line="", caller_text=""):
+        """The agent ends the call: its own line, spoken in full and not interruptible, then the line drops."""
+        if self._closing:
+            return
+        self._closing = True
+        self._act(f"end: Ended by {self.pack['name'].title()}: {reason}")
+        self._parting = asyncio.ensure_future(self._part(reason, line, caller_text))
+
+    async def _part(self, reason, line, caller_text):
+        line = line.strip() or await self._parting_line(reason, caller_text) or hangup(self.pack)
+        await self._finish(self.session.say(line, allow_interruptions=False))
+
+    async def _parting_line(self, reason, caller_text):
+        """A one-off reply for the code trigger: no tools and no facts in its context, so it can only say goodbye."""
+        ctx = llm.ChatContext()
+        ctx.add_message(role="system", content=f"You are {self.persona.title()}, {self.owner.title()}'s voice assistant. {render_style(self.pack)}\n"
+                        f"You are hanging up on this caller now because: {reason}. Write one short spoken sentence, in character, "
+                        "telling them you are done and leaving. No question. Words only.")
+        ctx.add_message(role="user", content=f'Caller said: "{caller_text}"')
+
+        async def read():
+            out = ""
+            async with self.session.llm.chat(chat_ctx=ctx, tools=[], conn_options=APIConnectOptions(max_retry=0)) as stream:
+                async for chunk in stream:
+                    out += (chunk.delta.content or "") if chunk.delta else ""
+            return out
+        try:
+            line = shape.clip((await asyncio.wait_for(read(), PART_WAIT_S)).strip())
+        except Exception as e:                # the call still has to end: the pack line covers it
+            logger.warning("parting line failed: %r", e)
+            return ""
+        return "" if "?" in line else line
 
     async def _gate(self, tool, **args):
         """A gated tool only records the request: the confirmation is already spoken, and llm_node stays silent on
@@ -589,16 +621,18 @@ class GooseAgent(DataTools, Agent):
         return await self._gate("request_permission_from_owner", fact=fact)
 
     @function_tool
-    async def hang_up(self, reason: str) -> str | None:
-        """Hang up on a caller who is harassing you or keeps pressing after you refused. No confirmation; it says the line
-        for you, so say nothing. Never use it for a normal goodbye: that is end_call.
+    async def hang_up(self, reason: str, parting_line: str = "") -> str | None:
+        """Hang up on a caller who is harassing you or keeps pressing after you refused. No confirmation. Put your last
+        words in parting_line and say nothing else; they are spoken in full, then the call ends. Never use it for a normal
+        goodbye: that is end_call.
 
         Args:
             reason: A few words for the call history, such as: caller kept pushing.
+            parting_line: Your own one-sentence goodbye, in character, telling the caller you are done.
         """
         if not (self.hostile or self.pushes):     # code has seen no abuse, so a model cannot drop a polite caller
             return "Not allowed yet: nothing has gone wrong on this call. Carry on politely."
-        self._end_on_them(reason)
+        self._end_on_them(reason, parting_line, self._caller_text)
 
     @function_tool
     async def end_call(self, ctx: RunContext, summary: str) -> None:
