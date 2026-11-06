@@ -36,7 +36,7 @@ class AgendaItem:
     goal: str
     needs: list[str] = field(default_factory=list)
     done_when: Optional[Callable[[dict], bool]] = None  # default: every `needs` slot is filled
-    max_turns: int = 3
+    max_turns: int = 2      # two asks, then code moves on
     owner_agent: str = ""
     turns_used: int = 0
     done: bool = False
@@ -84,6 +84,14 @@ class Agenda:
     def plan(self, task_text: str, planner: Callable[[str], list[AgendaItem]] = None) -> list[AgendaItem]:
         self.items = (planner or mock_planner)(task_text)
         return self.items
+
+    def add_ask(self, text: str) -> None:
+        """A new request mid-call, worked before the read-back. Closes by its slot or by the turn limit, one at a time."""
+        if (f := self.focus()) and f.id.startswith("ask_"):
+            return
+        id = f"ask_{sum(i.id.startswith('ask_') for i in self.items) + 1}"
+        at = next((n for n, i in enumerate(self.items) if i.id == "read_back"), len(self.items))
+        self.items.insert(at, AgendaItem(id, f"New request: {text}", [id]))
 
     def update_slots(self, extraction: dict) -> None:
         # A changed value for a filled slot = contradiction: reopen its dependents. They skip this

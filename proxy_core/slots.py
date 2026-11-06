@@ -10,15 +10,16 @@ _NUM = r"\d{1,2}(?::\d{2})?|one|two|three|four|five|six|seven|eight|nine|ten|ele
 _MERIDIEM = r"[ap]\.?m\b\.?"
 _DAY = re.compile(rf"\b({_DAYS})\b", re.I)
 _TIME = re.compile(rf"\b(?:at|around|to|it)\s+(?P<a>(?:{_NUM})(?:\s*{_MERIDIEM})?)|\b(?P<b>\d{{1,2}}(?::\d{{2}})?\s*{_MERIDIEM})|\b(?P<c>noon|midnight)\b", re.I)
-_NAME = re.compile(r"\b(?i:this is|it'?s|i'?m|i am|my name is|name'?s)\s+([A-Z][a-z]+)\b(?!')")
-_NOT_NAMES = set(_DAYS.split("|")) | {"not", "just", "sorry", "fine", "good", "okay", "busy", "free", "calling", "here", "great"}
+_NAME = re.compile(r"\b(?i:this is|it'?s|i'?m|i am|my name is|name'?s)\s+([A-Z][a-z]+)\b(?!')|\b([A-Z][a-z]+) here\b")
+_NOT_NAMES = set(_DAYS.split("|")) | {"not", "just", "sorry", "fine", "good", "okay", "busy", "free", "calling", "here", "great",
+                                       "still", "right", "nobody", "anyone", "everyone", "you", "yes", "am"}
 
 
 def extract(text: str) -> dict:
     """The last mention wins, so "Saturday... actually Sunday" gives Sunday."""
     out = {}
-    if (m := _NAME.search(text)) and m[1].lower() not in _NOT_NAMES:
-        out["name"] = m[1]
+    if (m := _NAME.search(text)) and (m[1] or m[2]).lower() not in _NOT_NAMES:
+        out["name"] = m[1] or m[2]
     if days := _DAY.findall(text):
         out["day"] = days[-1].title()
     if times := list(_TIME.finditer(text)):
@@ -57,7 +58,8 @@ def summary(s: dict, owner: str, ended: str) -> str:
 
 
 if __name__ == "__main__":
-    assert extract("Hi, it's Sam.") == {"name": "Sam"}
+    assert extract("Hi, it's Sam.") == {"name": "Sam"} == extract("Hey, Sam here.")
+    assert extract("Still here.") == {}
     assert extract("I'm his boss") == {} and extract("It's Saturday") == {"day": "Saturday"}
     assert "name" not in extract("I'm Pranav's brother")
     assert extract("Dinner Saturday at 7 p.m. works") == {"day": "Saturday", "time": "7 p.m."}

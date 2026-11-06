@@ -30,6 +30,18 @@ JOIN_TIMEOUT_S = 8
 logger = logging.getLogger("goose")
 
 
+def _as_data(chat_ctx):
+    """Spec, injection layer 1: the model reads a caller's words as a quote. Done here, not in the hook, because editing
+    the turn there invalidates preemptive generation. Other agents' "[Maya said]: ..." lines stay as they are."""
+    ctx = chat_ctx.copy()
+    for n, item in enumerate(ctx.items):
+        text = getattr(item, "role", "") == "user" and item.text_content
+        if text and not text.startswith("["):
+            quoted = text.replace('"', "'")
+            ctx.items[n] = item.model_copy(update={"content": [f'Caller said: "{quoted}"']})
+    return ctx
+
+
 def _now():
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
@@ -205,11 +217,17 @@ class GooseAgent(DataTools, Agent):
         if await self._answer(text, new_message.id) or self._closing:
             self._just_read = False
             raise StopResponse()
-        changed = self._note({**slots.extract(text), **({"topic": text} if d.new_ask and "topic" not in self.agenda.slots else {})})
+        ask = d.new_ask and not d.injection
+        first_ask = ask and "topic" not in self.agenda.slots
+        changed = self._note({**slots.extract(text), **({"topic": text} if first_ask else {})})
         if self._read_back_turn(text, changed, d.done or is_bye(text)):
             raise StopResponse()
+        if ask and not first_ask:
+            self.agenda.add_ask(text)
         self.agenda.tick()
         if self.agenda.should_force_advance():
+            if self.agenda.focus().id == "identify":
+                notes.append("If the caller has not given a name, say you'll note them as an unknown caller. Do not ask again.")
             self.agenda.force_advance()
         # Editing turn_ctx every turn invalidates preemptive generation (the "preemptive generation invalidated"
         # warning in the console log), so only do it when there is something to say.
@@ -244,7 +262,7 @@ class GooseAgent(DataTools, Agent):
         # The model's words wait for the end of the stream: models announce an action before calling its tool, and
         # a gated tool makes those words false. Preemptive generation runs ahead of the turn, so this wait is mostly hidden.
         words, called = [], set()
-        async for chunk in Agent.default.llm_node(self, chat_ctx, tools, model_settings):
+        async for chunk in Agent.default.llm_node(self, _as_data(chat_ctx), tools, model_settings):
             delta = getattr(chunk, "delta", None)
             if delta and delta.content:      # models parrot the [Maya said]: context lines, and TTS would read them out
                 delta.content = re.sub(r"\[\w+ said\]:\s*", "", delta.content)
@@ -279,7 +297,7 @@ class GooseAgent(DataTools, Agent):
             yield chunk
         for held in words:
             yield held
-        self._bye_open = is_bye(text) and not called   # the model said goodbye without hanging up: tts_node closes
+        self._bye_open = is_bye(text) and not called and not self._owes_read_back()   # the model said goodbye without hanging up: tts_node closes
 
     async def _answer(self, text, message_id):
         """The caller's answer to a read-back or pending actions. True = code answered this turn. llm_node and the hook
@@ -332,8 +350,10 @@ class GooseAgent(DataTools, Agent):
     async def _do(self, tool, args):
         if tool == "take_message":
             self._act(f"message from {args['from_name']}: {args['message']}")
-            s = self.agenda.slots
-            self._note({"name": s.get("name") or args["from_name"], "topic": s.get("topic") or args["message"], "details": args["message"]})
+            s, f = self.agenda.slots, self.agenda.focus()
+            extra = f and f.id.startswith("ask_") and s.get("details")     # a second message adds to the first
+            self._note({"name": s.get("name") or args["from_name"], "topic": s.get("topic") or args["message"],
+                        "details": f"{extra.rstrip(' .')}. {args['message']}" if extra else args["message"], **({f.id: True} if extra else {})})
             return "message saved"
         if tool == "propose_slot":
             self._act(f"slot {args['when']}")

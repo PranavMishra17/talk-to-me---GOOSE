@@ -49,9 +49,9 @@ def test_contradiction_after_yes_reopens_read_back():
 
 
 def test_item_and_call_limits():
-    a = Agenda(max_turns_per_call=5)
+    a = Agenda(max_turns_per_call=4)
     a.plan("x")
-    for _ in range(3):
+    for _ in range(2):
         assert not a.should_force_advance()
         a.tick()
     assert a.should_force_advance()
@@ -59,6 +59,16 @@ def test_item_and_call_limits():
     assert a.focus().id == "learn_ask" and not a.exhausted()
     a.tick(); a.tick()
     assert a.exhausted()
+
+
+def test_new_ask_goes_before_the_read_back_and_closes_by_its_slot():
+    a = make()
+    a.update_slots({"name": "Sam", "topic": "dinner", "details": "Saturday"})
+    a.add_ask("also book a table")
+    a.add_ask("and call Rohan")           # one open at a time
+    assert a.focus().id == "ask_1" and [i.id for i in a.items][3:] == ["read_back", "close"]
+    a.update_slots({"ask_1": True})
+    assert a.focus().id == "read_back"
 
 
 def test_render_and_round_trip():
