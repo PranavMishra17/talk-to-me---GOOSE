@@ -186,11 +186,14 @@ async def room_state(name: str):
     lk = _lk()
     try:
         rooms = (await lk.room.list_rooms(api.ListRoomsRequest(names=[name]))).rooms
-        if not rooms:
+        try:
+            people = (await lk.room.list_participants(api.ListParticipantsRequest(room=name))).participants if rooms else None
+        except api.TwirpError:   # LiveKit lists a room for a moment after it closes
+            people = None
+        if people is None:
             if name in LAST:
                 return LAST[name]
             raise HTTPException(404, "no such room")
-        people = (await lk.room.list_participants(api.ListParticipantsRequest(room=name))).participants
     finally:
         await lk.aclose()
     state = live_state(name, rooms[0].metadata, people)
