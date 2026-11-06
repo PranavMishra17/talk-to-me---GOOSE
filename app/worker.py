@@ -167,6 +167,8 @@ async def _run(ctx: JobContext, persona: str):
     session.on("function_tools_executed", lambda ev: agent.publish())
 
     def caller_id(p):   # S8-06: the tier comes from the number the phone network gave us
+        if p.attributes.get("goose.input") in ("hold", "type"):   # quiet on purpose from the first second, not the first press
+            agent.manual_input = True
         number = _number(p, owner)
         if number:
             asyncio.ensure_future(agent.set_caller(number))
