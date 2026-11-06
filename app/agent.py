@@ -235,12 +235,17 @@ class GooseAgent(DataTools, Agent):
             notes.append(["Respond warmly and redirect.", "State one boundary sentence."][self.hostile - 1])
         if await self._answer(text, new_message.id) or self._closing:
             raise StopResponse()
-        if self._done and text.startswith(self._done[0]):   # changes the context, so the preemptive reply cannot be used
+        fired = self._done and text.startswith(self._done[0])
+        summoning = fired and self._ask and text.startswith(self._ask[0])
+        if summoning:                                       # changes the context, so the preemptive reply cannot be used
             notes.append(f"Done: {self._done[1]}.")
         ask = d.new_ask and not d.injection
         first_ask = ask and "topic" not in self.agenda.slots
         changed = self._note({**slots.extract(text), **({"topic": text} if first_ask else {})})
         if self._read_back_turn(text, changed, d.done or is_bye(text)):
+            raise StopResponse()
+        if fired and not summoning:   # code says it: a model reply here was sometimes dropped, leaving 8 s of silence before the nudge
+            self.session.say(f"Done, {self.owner.title()} will get that. Anything else?")
             raise StopResponse()
         if ask and not first_ask:
             self.agenda.add_ask(text)
