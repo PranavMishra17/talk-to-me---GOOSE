@@ -56,7 +56,7 @@ SAVES = lambda a: [e for e in a.log if e.startswith("message from")]
 
 def test_a_claim_with_nothing_queued_becomes_the_confirm():
     a, said = play([("Tell him I'm bringing wine.", ["I've added that to the note."])])
-    assert "added" not in " ".join(said[0]) and "pass that on" in " ".join(said[0]).lower()
+    assert "added" not in " ".join(said[0]) and "radio that" in " ".join(said[0]).lower()
     assert "take_message" in a.agenda.pending and not SAVES(a)
 
 
@@ -68,17 +68,17 @@ def test_a_yes_to_a_spoken_offer_makes_the_claim_true():
 
 def test_a_yes_to_a_spoken_offer_is_not_asked_again():
     a, said = play([("Tell him dinner works.", ["Want me to pass that on?"]), ("Yes.", [MSG, "Saved."])])
-    assert "pass that on" not in " ".join(said[1]).lower() and len(SAVES(a)) == 1 and not a.agenda.pending
+    assert "radio that" not in " ".join(said[1]).lower() and len(SAVES(a)) == 1 and not a.agenda.pending
 
 
 def test_a_repeat_after_the_yes_is_not_asked_again():
     a, said = play([("Tell him dinner works.", [MSG]), ("Yes.", ["Saved."]), ("Thanks.", [MSG, "All set."])])
-    assert "pass that on" not in " ".join(said[2]).lower() and len(SAVES(a)) == 1 and not a.agenda.pending
+    assert "radio that" not in " ".join(said[2]).lower() and len(SAVES(a)) == 1 and not a.agenda.pending
 
 
 def test_nothing_fires_without_a_yes():
     a, said = play([("Tell him dinner works.", [MSG])])
-    assert not SAVES(a) and "take_message" in a.agenda.pending and "pass that on" in " ".join(said[0]).lower()
+    assert not SAVES(a) and "take_message" in a.agenda.pending and "radio that" in " ".join(said[0]).lower()
 
 
 def test_hang_up_is_refused_on_a_polite_call_and_allowed_after_abuse():
@@ -141,7 +141,7 @@ def test_the_failed_room_run_now_hangs_up_on_line_4():
 def test_the_pack_line_covers_a_failed_or_useless_model():
     for bad in (RuntimeError("model down"), "", "Are you still there?"):
         a, stopped, _ = hook_turns("+15550100999", PUSHY, "jesse", JESSE_SAID, model=[bad])
-        assert stopped == 4 and a.said_at_end == [("This is a waste of time, yo. I'm out.", {"allow_interruptions": False})]
+        assert stopped == 4 and a.said_at_end == [("Yeah, no, we're done here, dude. I'm out.", {"allow_interruptions": False})]
 
 
 def test_the_tool_speaks_the_agents_own_line():
