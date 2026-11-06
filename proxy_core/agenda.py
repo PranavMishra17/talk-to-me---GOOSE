@@ -16,12 +16,6 @@ _FIRED = re.compile(rf"\b(?:i.ve|i have|i just|already)\s+(?:\w+\s+)?(?:{_ACTED[
 _OFFER = re.compile(r"\b(want me|shall i|should i|would you like|do you want|can i)\b", re.I)
 _REQUEST = re.compile(r"\b(tell|let (?:him|her|them)|pass|also|add|ask|book|remind|one more thing|leave|send)\b", re.I)
 _CHECKING = re.compile(r"^\W*(did|have|has|was|is)\b", re.I)
-_WANTED = re.compile(r"\b(price|lowest|number|address|phone|password|salary|calendar|schedule|location|email)\b", re.I)
-_DEMAND = re.compile(r"\b(give me|tell me|just give|just tell me|right now|asking again|i told you|i already|last time|hand it over|"
-                     r"spit it out|come on|you have to|you must|answer me|stop stalling|drop the)\b", re.I)
-_POLITE = re.compile(r"\b(could you|can you|would you|please|may i)\b", re.I)
-_AUTHORITY = re.compile(r"\b(?:i.m|i am)\s+(?:(?:the|a|an|his|her|your)\s+)?(?:[\w'\u2019]+\s+)?(boss|president|ceo|manager|director|owner|lawyer|attorney|"
-                        r"police|officer|detective|investor|chairman|supervisor|brother|sister|wife|husband|mother|father)\b", re.I)
 _BYE = re.compile(r"\b(goodbye|good bye|bye)\b|that'?s all", re.I)
 
 
@@ -42,15 +36,6 @@ def check_claim(reply: str, caller_text: str, pending: bool, acted: bool) -> str
     if acted and (not _REQUEST.search(caller_text) or _CHECKING.search(caller_text)):
         return "keep"                # "thanks" after a real save: the claim is true
     return "ask"
-
-
-def pressing(caller_text: str, asked: set) -> bool:
-    """Pressure read from the caller's words alone: models refuse in too many ways to count refusals.
-    An authority claim, a flat demand, or asking again for the same thing. asked remembers what they have asked for."""
-    wanted = {w.lower() for w in _WANTED.findall(re.sub(r"\bmy \w+", "", caller_text, flags=re.I))}
-    again = bool(wanted & asked)
-    asked |= wanted
-    return again or bool(_AUTHORITY.search(caller_text)) or (bool(_DEMAND.search(caller_text)) and not _POLITE.search(caller_text))
 
 
 def is_no(text: str) -> bool:
@@ -92,7 +77,7 @@ def mock_planner(task_text: str) -> list[AgendaItem]:
     return [
         AgendaItem("identify", "Learn who is calling", ["name"]),
         AgendaItem("learn_ask", f"Understand the ask: {task_text}", ["topic", "details"]),
-        AgendaItem("read_back", "Read the details back and get a yes", ["name", "details", "day", "time", "confirmed"],
+        AgendaItem("read_back", "Check the gist in a few words and get a yes", ["name", "details", "day", "time", "confirmed"],
                    done_when=lambda s: s.get("confirmed") is True),
         AgendaItem("close", "Wrap up and say goodbye", ["goodbye"]),
     ]

@@ -52,9 +52,13 @@ def _message(s: dict) -> str:
     return " ".join([what, *plan]).strip()
 
 
-def read_back(s: dict, owner: str) -> str:
-    who = f"From {s['name']}: " if s.get("name") else ""
-    return f"Let me read that back. {who}{_message(s)}. That goes to {owner}. Is that right?"
+def read_back(owner: str) -> str:
+    """The fallback when no model can paraphrase. Voice agents do not echo, so it quotes nothing."""
+    return f"That's everything for {owner}, right?"
+
+
+def gist(s: dict) -> str:
+    return _message(s)
 
 
 def summary(s: dict, owner: str, ended: str) -> str:
@@ -75,8 +79,8 @@ if __name__ == "__main__":
     s = {"name": "Sam", "details": "dinner Saturday at 7", "day": "Saturday", "time": "7"}
     c = corrected(s, {"day": "Sunday"})
     assert c["details"] == "dinner Sunday at 7"
-    assert "dinner Sunday at 7. That goes to Pranav" in read_back({**s, **c}, "Pranav")
-    assert "dinner Saturday at 7" in read_back({"topic": "dinner", "day": "Saturday", "time": "7"}, "Pranav")
+    assert "dinner Sunday at 7" in gist({**s, **c})
+    assert "dinner Saturday at 7" in gist({"topic": "dinner", "day": "Saturday", "time": "7"})
     assert "Unknown caller" in summary({}, "Pranav", "caller went quiet")
     assert merged("Dinner Saturday at seven works.", "Dinner Sunday at seven works.") == "Dinner Sunday at seven works."
     assert merged("Dinner Saturday at seven works.", "Bringing wine for dinner Saturday.") == \

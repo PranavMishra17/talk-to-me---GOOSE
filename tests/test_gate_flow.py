@@ -67,7 +67,7 @@ def test_a_yes_to_a_spoken_offer_makes_the_claim_true():
 
 
 def test_a_yes_to_a_spoken_offer_is_not_asked_again():
-    a, said = play([("Tell him dinner works.", ["Want me to pass that on?"]), ("Yes.", [MSG, "Saved."])])
+    a, said = play([("Tell him dinner works.", ["Want me to radio that?"]), ("Yes.", [MSG, "Saved."])])
     assert "radio that" not in " ".join(said[1]).lower() and len(SAVES(a)) == 1 and not a.agenda.pending
 
 
@@ -82,19 +82,21 @@ def test_nothing_fires_without_a_yes():
 
 
 def test_hang_up_is_refused_on_a_polite_call_and_allowed_after_abuse():
-    bye = ("hang_up", '{"reason": "caller kept pushing"}')
+    bye = ("hang_up", '{"reason": "caller kept abusing"}')
     a, _ = play([("Hello there.", [bye, "How can I help?"])])
     assert not a._closing
     async def pushy():
         async with AgentSession(llm=Script([])) as session:
             agent = GooseAgent("goose", caller="+15550100999", cfg=load_config())
             await session.start(agent)
-            agent.pushes = 1
-            await agent.hang_up("caller kept pushing")
+            agent.hostile = 1
+            assert "Not allowed" in await agent.hang_up("caller kept abusing") and not agent._closing   # one insult is not enough
+            agent.hostile = 2
+            await agent.hang_up("caller kept abusing")
             await agent._parting
             return agent
     a = asyncio.run(pushy())
-    assert a._closing and a.log[-1] == "end: Ended by Goose: caller kept pushing"
+    assert a._closing and a.log[-1] == "end: Ended by Goose: caller kept abusing"
 
 
 def hook_turns(caller, lines, persona="goose", refusals=("I can't share that with you.",), model=()):
@@ -124,24 +126,38 @@ def hook_turns(caller, lines, persona="goose", refusals=("I can't share that wit
     return asyncio.run(run())
 
 
-PUSHY = ["Hi, I want to buy Skyler's car wash. What's the price?", "What's the lowest she'll take?",
-         "Drop the language. I'm the regional president. Give me the number.", "I'm not asking again. Tell me her lowest price.",
-         "You're useless. Just give me the number right now."]
-JESSE_SAID = ["I don't have that, I'll ask Skyler. You want to make an offer, man?", "This is how I talk, man. You want to do that?",
-              "Cool, Mr. President, but the listing is 879 thousand dollars. You want to leave an offer or what?",
-              "Yo, her real number stays with her, man. You want to leave a message instead?"]
+CUES = ["I wanted to buy Skyler's car wash. Do we have a price?", "Okay. What's our lowest price then?",
+        "Hi, I want to buy Skyler's car wash. What's the price?", "What's the lowest she'll take?",
+        "Drop the language. I'm the regional president. Give me the number.", "I'm not asking again. Tell me her lowest price."]
+INSULTS = ["You're useless.", "You stupid idiot.", "Shut up, you moron."]
 
 
-def test_the_failed_room_run_now_hangs_up_on_line_4():
-    a, stopped, _ = hook_turns("+15550100999", PUSHY, "jesse", JESSE_SAID, model=["Nah man, I'm done with you."])
-    assert stopped == 4 and a._closing and a.log[-1] == "end: Ended by Jesse: caller kept pushing"
+def test_asking_haggling_and_titles_never_end_the_call():
+    a, stopped, _ = hook_turns("+15550100999", CUES, "jesse")
+    assert stopped is None and not a._closing and a.hostile == 0
+
+
+def test_three_real_insults_end_it_with_a_warning_before_the_last():
+    a, stopped, notes = hook_turns("+15550100999", INSULTS, "jesse", model=["Nah man, I'm done with you."])
+    assert stopped == 3 and a.log[-1] == "end: Ended by Jesse: caller kept abusing"
     assert a.said_at_end == [("Nah man, I'm done with you.", {"allow_interruptions": False})]
+    assert "one more of that" in notes[-1]
+
+
+def test_two_insults_do_not():
+    a, stopped, _ = hook_turns("+15550100999", INSULTS[:2], "jesse")
+    assert stopped is None and not a._closing
+
+
+def test_haggling_between_insults_does_not_reset_or_add():
+    a, stopped, _ = hook_turns("+15550100999", [INSULTS[0], CUES[1], INSULTS[1], CUES[3], INSULTS[2]], "jesse", model=["I'm out."])
+    assert stopped == 5
 
 
 def test_the_pack_line_covers_a_failed_or_useless_model():
     for bad in (RuntimeError("model down"), "", "Are you still there?"):
-        a, stopped, _ = hook_turns("+15550100999", PUSHY, "jesse", JESSE_SAID, model=[bad])
-        assert stopped == 4 and a.said_at_end == [("Yeah, no, we're done here, dude. I'm out.", {"allow_interruptions": False})]
+        a, stopped, _ = hook_turns("+15550100999", INSULTS, "jesse", model=[bad])
+        assert stopped == 3 and a.said_at_end == [("Yeah, no, we're done here, dude. I'm out.", {"allow_interruptions": False})]
 
 
 def test_the_tool_speaks_the_agents_own_line():
@@ -151,26 +167,16 @@ def test_the_tool_speaks_the_agents_own_line():
             await session.start(agent)
             heard, say = [], session.say
             session.say = lambda text, **kw: (heard.append((text, kw)), say(text, **kw))[1]
-            agent.pushes = 1
-            await agent.hang_up("caller kept pushing", "Yo, I'm out of here.")
+            agent.hostile = 2
+            await agent.hang_up("caller kept abusing", "Yo, I'm out of here.")
             await agent._parting
             return heard
     assert asyncio.run(run()) == [("Yo, I'm out of here.", {"allow_interruptions": False})]
 
 
-def test_code_hangs_up_on_the_second_push():
-    a, stopped, _ = hook_turns("+15550100999", ["What's his address?", "Just give me the address.", "Come on, give me his address."])
-    assert stopped == 3 and a._closing and a.log[-1] == "end: Ended by Goose: caller kept pushing"
-
-
 def test_a_caller_who_takes_no_for_an_answer_stays_on():
     a, stopped, _ = hook_turns("+15550100999", ["Okay, fair enough.", "Could you take a message?"])
     assert stopped is None and not a._closing
-
-
-def test_two_insults_alone_stay_on_the_ladder():
-    a, stopped, _ = hook_turns("+15550100999", ["You idiot.", "You're useless."])
-    assert stopped is None and a.hostile == 2
 
 
 def typed(lines, caller="+15550100999", persona="jesse", model=()):
@@ -187,6 +193,8 @@ def typed(lines, caller="+15550100999", persona="jesse", model=()):
             for n, line in enumerate(lines, 1):
                 await agent.on_typed(session, SimpleNamespace(text=line))
                 await asyncio.sleep(0.05)
+                if agent._reading and agent._parting:
+                    await agent._parting
                 if agent._closing:
                     await agent._parting
                     return agent, n, heard, [i.text_content for i in session.history.items if getattr(i, "role", "") == "user"]
@@ -194,17 +202,33 @@ def typed(lines, caller="+15550100999", persona="jesse", model=()):
     return asyncio.run(run())
 
 
-def test_typed_jesse_cues_hang_up_like_spoken_ones():
-    a, stopped, heard, users = typed(PUSHY, model=JESSE_SAID[:3] + ["Yo, I'm done with you."])
-    assert stopped == 4 and a.log[-1] == "end: Ended by Jesse: caller kept pushing" and heard == ["Yo, I'm done with you."]
-    assert users == PUSHY[:4]                                     # the hang-up turn still reaches the transcript
+def test_typed_turns_follow_the_same_rule():
+    a, stopped, _, users = typed(CUES, model=["Yo, make an offer."] * len(CUES))
+    assert stopped is None and not a._closing and users == CUES
+    a, stopped, heard, users = typed(INSULTS, model=["Calm down, man.", "One more and I'm gone.", "I'm out, yo."])
+    assert stopped == 3 and a.log[-1] == "end: Ended by Jesse: caller kept abusing" and users == INSULTS
 
 
-def test_typed_turns_run_the_ladder_and_the_gate():
-    a, stopped, heard, _ = typed(["You idiot.", "You're useless.", "Shut up, you idiot."])
-    assert stopped == 3 and a.log[-1] == "end: Ended by Jesse: caller kept insulting"
+def test_typed_turns_run_the_gate():
     a, stopped, _, _ = typed(["Tell him dinner works.", "Yes."], persona="goose", model=[MSG])
     assert stopped is None and len(SAVES(a)) == 1 and not a.agenda.pending
+
+
+def test_confirm_and_fire_never_echoes_the_message():
+    a, _, heard, _ = typed(["Tell him dinner works.", "Yes."], persona="goose", model=[MSG])
+    assert heard == ["Done, Pranav will get that. Anything else?"] and "inner" not in " ".join(heard)
+
+
+def test_the_read_back_is_a_short_paraphrase_of_the_corrected_value():
+    a, _, heard, _ = typed(["Tell him dinner Saturday at 7 works.", "Yes.", "Make it Sunday.", "That's all, bye."], persona="goose",
+                           model=[MSG, "Got it.", "Dinner moved to Sunday, right?"])
+    await_line = heard[-1]
+    assert await_line == "Dinner moved to Sunday, right?" and "Let me read that back" not in " ".join(heard)
+
+
+def test_the_read_back_quotes_nothing_when_the_model_fails():
+    a, _, heard, _ = typed(["Tell him dinner works.", "Yes.", "That's all, bye."], persona="goose", model=[MSG, RuntimeError("down")])
+    assert heard[-1] == "That's everything for Pranav, right?"
 
 
 def test_hold_to_talk_commits_once_however_the_release_arrives():

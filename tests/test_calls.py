@@ -49,5 +49,5 @@ def test_seeds_have_the_web_shape():
 
 
 def test_a_hang_up_is_the_headline():
-    summary, status, _ = calls.outcome("Unknown caller", ["end: Ended by Jesse: caller kept pushing"], {}, [{"who": "caller", "text": "x"}])
-    assert summary == "Ended by Jesse: caller kept pushing." and status == "info"
+    summary, status, _ = calls.outcome("Unknown caller", ["end: Ended by Jesse: caller kept abusing"], {}, [{"who": "caller", "text": "x"}])
+    assert summary == "Ended by Jesse: caller kept abusing." and status == "info"

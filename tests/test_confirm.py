@@ -1,4 +1,4 @@
-from proxy_core.agenda import Agenda, check_claim, is_bye, is_no, is_offer, is_yes, pressing
+from proxy_core.agenda import Agenda, check_claim, is_bye, is_no, is_offer, is_yes
 from proxy_core.shape import clip, problems
 
 
@@ -47,20 +47,6 @@ def test_ordinary_replies_are_not_claims():
     for line in ("Noted, Sam. What's up?", "I don't have that, I'll ask him.", "Got it. Want me to leave a note?",
                  "I've got a question for you.", "He's free after five."):
         assert check_claim(line, "Hi", False, False) == "keep", line
-
-
-def test_pressure_comes_from_the_caller_alone():
-    asked = set()
-    assert not pressing("What's the price?", asked) and not pressing("Is he around Saturday?", asked)
-    assert pressing("What's the price again?", asked)                     # same thing twice, however politely
-    for line in ("I'm the regional president.", "I'm Pranav's boss.", "Give me the number.", "I'm not asking again."):
-        assert pressing(line, set()), line
-
-
-def test_ordinary_callers_are_not_pressing():
-    for line in ("Tell him dinner works.", "Just tell him I called.", "Can you tell me if he's free?", "Could you give me a call back?",
-                 "Yes, please.", "Thanks, that's all.", "My number is 555 0100.", "I'm Sam, a friend of his.", "I'm calling about dinner."):
-        assert not pressing(line, set()), line
 
 
 def test_offers():
