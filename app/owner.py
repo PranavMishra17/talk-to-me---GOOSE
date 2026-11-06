@@ -5,7 +5,7 @@ relationship owner in the contact book gets it on the phone too, with the tier c
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from livekit.agents import Agent, function_tool
@@ -23,7 +23,9 @@ class OwnerAgent(DataTools, Agent):
     def __init__(self, persona, owner, pack_name, number="", tier="private"):
         self.persona, self.owner, self.pack_name, self.number, self.caller_tier = persona, owner, pack_name, number, tier
         self.started_at = datetime.now().astimezone().isoformat(timespec="seconds")
-        today = f"{datetime.now():%A} {datetime.now().day} {datetime.now():%B %Y}"
+        self._last_event = ""
+        now = datetime.now()
+        today = f"{now:%A} {now.date()}, so tomorrow is {now.date() + timedelta(days=1)}"
         super().__init__(instructions=PROMPT.format(assistant=persona.title(), owner=owner.title(), today=today, style=render_style(load_pack(pack_name), "own")))
 
     async def on_enter(self):
@@ -50,19 +52,22 @@ class OwnerAgent(DataTools, Agent):
     async def add_calendar_event(self, title: str, start: str, end: str = "", where: str = "") -> str:
         """Add an entry to the owner's diary. start and end are ISO, like 2026-11-07T19:00:00. end defaults to an hour later."""
         try:
-            return f"Added {vault.add_event(title, start, end, where)['title']}."
+            event = vault.add_event(title, start, end, where)
         except ValueError:
             return "That needs a full date and time."
+        self._last_event = event["id"]
+        return f"Added {vault.event_text(event)}."
 
     @function_tool
     async def update_calendar_event(self, event: str, title: str = "", start: str = "", end: str = "", where: str = "") -> str:
-        """Change a diary entry. event is words from its title; leave a field empty to keep it. start and end are ISO."""
+        """Change a diary entry. event is words from its title, or empty for the entry just added or changed. Leave a field empty to keep it. start and end are ISO."""
         try:
-            found = vault.update_event(event, self.caller_tier, title=title, start=start, end=end, where=where)
+            found = vault.update_event(event, self.caller_tier, last=self._last_event, title=title, start=start, end=end, where=where)
         except ValueError:
             return "That needs a full date and time."
         if isinstance(found, dict):
-            return f"Updated {found['title']}."
+            self._last_event = found["id"]
+            return f"Updated {vault.event_text(found)}."
         return f"Which one: {', '.join(found)}?" if found else "No entry like that."
 
     @function_tool

@@ -57,8 +57,14 @@ def _save(name: str, record: dict) -> dict:
 
 
 def _when(text: str) -> str:
-    """An ISO date and time, or ValueError. A bare time gets the local zone, as everything else in the diary has one."""
+    """An ISO date and time, or ValueError. A bare time gets the local zone, as everything else in the diary has one.
+    A bare date is the evening: "a dinner reservation for tomorrow" names no time, and the tool's reply says the one it chose."""
+    text = f"{text}T19:00:00" if len(text) == 10 else text
     return datetime.fromisoformat(text).astimezone().isoformat(timespec="seconds")
+
+
+def event_text(e: dict) -> str:
+    return ", ".join(filter(None, [e["title"], _span(e["start"], e["end"]), e.get("where")]))
 
 
 def add_event(title: str, start: str, end: str = "", where: str = "", tier: str = "private") -> dict:
@@ -68,12 +74,15 @@ def add_event(title: str, start: str, end: str = "", where: str = "", tier: str 
     return _save("calendar", {"id": f"c-{os.urandom(3).hex()}", "start": begin, "end": finish, "title": title, "where": where, "with": [], "tier": tier})
 
 
-def update_event(event: str, tier: str, **changes) -> dict | list[str]:
+def update_event(event: str, tier: str, last: str = "", **changes) -> dict | list[str]:
     """event = words from its title. Returns the record, or the titles it could be when that is not exactly one.
+    last = the entry just discussed, which "update the location to Bungalow" means, whatever the model calls it.
     Only entries the tier can see match, so a reply never names one it cannot."""
     words = event.lower().split()
     allowed = {e["id"] for e in visible(_load("calendar"), tier)}
     found = [e for e in _load("calendar") if e["id"] in allowed and all(w in e["title"].lower() for w in words)]
+    if last and (len(found) != 1 or not words):
+        found = [e for e in _load("calendar") if e["id"] == last and e["id"] in allowed] or found
     if len(found) != 1:
         return [e["title"] for e in found]
     changes = {k: _when(v) if k in ("start", "end") else v for k, v in changes.items() if v}

@@ -31,8 +31,8 @@ def test_public_calendar_is_free_busy_only():
     assert all(set(e) == {"when", "busy"} for e in vault.get_calendar("public"))
     friend = {e["when"]: e.get("title") for e in vault.get_calendar("friends", today=date(2026, 11, 6))}
     assert friend["tomorrow, 9 to 10 in the morning"] is None     # cardiology stays a busy block
-    assert friend["tomorrow, 7 to half past 9 in the evening"] == "Dinner with Sam, Lena and Rohan"
-    assert "Dinner with Sam, Lena and Rohan" in friend.values()
+    assert "Climbing with Muhammad" in friend.values()
+    assert not any("Dinner" in (t or "") and "Northwind" not in (t or "") for t in friend.values())   # Goose adds it on stage
 
 
 def test_unlabelled_record_counts_as_private(tmp_path):

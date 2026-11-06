@@ -1,5 +1,6 @@
 """The real owner agent and its writes against a scripted model: no network, no credits."""
 import asyncio
+import json
 
 import pytest
 from livekit.agents import AgentSession
@@ -11,13 +12,21 @@ from proxy_core import vault
 from proxy_core.config import load_config
 
 
-def play(steps, line, tier="private"):
+def play2(turns, tier="private"):
+    """Each turn is what the model does; one session throughout, as on stage. Returns each turn's tool outputs."""
     async def run():
-        async with AgentSession(llm=Script(steps)) as session:
+        out = []
+        async with AgentSession(llm=Script([s for steps in turns for s in steps])) as session:
             await session.start(OwnerAgent("goose", "pranav", "goose", tier=tier))
-            r = await session.run(user_input=line)
-            return [e.item.output for e in r.events if getattr(e, "type", "") == "function_call_output"]
+            for _ in turns:
+                r = await session.run(user_input="Go on.")
+                out.append([e.item.output for e in r.events if getattr(e, "type", "") == "function_call_output"])
+        return out
     return asyncio.run(run())
+
+
+def play(steps, line, tier="private"):
+    return play2([steps], tier)[0]
 
 
 @pytest.fixture(autouse=True)
@@ -27,22 +36,33 @@ def overlay(tmp_path, monkeypatch):
     monkeypatch.setattr(OwnerAgent, "_brief", lambda self: asyncio.sleep(0))   # a text session has no TTS to say it with
 
 
-def test_moving_dinner_shows_in_later_reads_and_leaves_data_alone():
+def test_stage_flow_adds_dinner_then_a_short_follow_up_moves_it():
     before = (vault.DATA / "calendar.json").read_text(encoding="utf-8")
-    out = play([("update_calendar_event", '{"event": "dinner sam", "where": "Bungalow"}'), "Moved it."], "Move dinner to Bungalow.")
-    assert out == ["Updated Dinner with Sam, Lena and Rohan."]
-    assert [e["where"] for e in vault.get_calendar("friends") if "Dinner" in e.get("title", "")] == ["Bungalow"]
+    assert not [e for e in vault._load("calendar") if "2026-11-07T19" in e["start"]]
+    out = play2([[("add_calendar_event", '{"title": "Dinner reservation", "start": "2026-11-07"}'), "Added."],
+                 [("update_calendar_event", '{"event": "dinner", "where": "Bungalow"}'), "Moved."]])
+    assert out[0][0].startswith("Added Dinner reservation") and "7" in out[0][0]
+    assert out[1][0].startswith("Updated Dinner reservation") and out[1][0].endswith("Bungalow.")
+    assert [e["where"] for e in vault._load("calendar") if e["title"] == "Dinner reservation"] == ["Bungalow"]
     assert (vault.DATA / "calendar.json").read_text(encoding="utf-8") == before
 
 
-def test_two_matches_ask_which_one():
+def test_a_follow_up_works_with_no_title_or_the_wrong_one():
+    for event in ("", "the reservation at the restaurant"):
+        out = play2([[("add_calendar_event", '{"title": "Lunch", "start": "2026-11-09T12:00:00"}'), "Added."],
+                     [("update_calendar_event", json.dumps({"event": event, "where": "Bungalow"})), "Moved."]])
+        assert out[1][0].startswith("Updated Lunch")
+
+
+def test_two_matches_with_nothing_just_discussed_ask_which_one():
+    assert vault.add_event("Dinner at home", "2026-11-09")
     out = play([("update_calendar_event", '{"event": "dinner", "where": "Bungalow"}'), "Which?"], "Move dinner.")
-    assert out[0].startswith("Which one:") and "Dinner with Sam" in out[0]
+    assert out[0].startswith("Which one:") and "Dinner at home" in out[0]
 
 
 def test_new_entry_is_private_and_a_task_lands():
     out = play([("add_calendar_event", '{"title": "Dentist", "start": "2026-11-09T09:00:00"}'), ("add_task", '{"text": "Buy wine"}'), "Done."], "Add both.")
-    assert out[0] == "Added Dentist." and out[1] == "Added Buy wine."
+    assert out[0].startswith("Added Dentist") and out[1] == "Added Buy wine."
     assert any(e.get("title") == "Dentist" for e in vault.get_calendar("private"))
     assert not any(e.get("title") == "Dentist" for e in vault.get_calendar("family"))
     assert vault._load("tasks")[-1]["text"] == "Buy wine"

@@ -1,9 +1,9 @@
 {"id": "seed-0001", "started_at": "2026-11-06T11:42:10-05:00", "ended_at": "2026-11-06T11:42:36-05:00", "kind": "phone", "number": "+15550100222",
  "contact": {"name": "Sam Okafor", "relationship": "friend", "tier": "friends"}, "persona": "goose", "pack": "goose",
- "summary": "Sam checked dinner Saturday is on. It is, at 7 at Neptune Oyster.", "outcome": "resolved", "actions": [],
+ "summary": "Sam checked dinner Saturday is on. He has the table at Neptune Oyster for 7.", "outcome": "resolved", "actions": [],
  "transcript": [
   {"who": "goose", "text": "Hi Sam, Goose here. What can I do for you?", "ts": "2026-11-06T11:42:12-05:00"},
   {"who": "caller", "text": "Just checking dinner Saturday is still on.", "ts": "2026-11-06T11:42:20-05:00"},
-  {"who": "goose", "text": "It's in his calendar for 7 at Neptune Oyster.", "ts": "2026-11-06T11:42:26-05:00"},
+  {"who": "goose", "text": "Yes, you booked Neptune Oyster for 7.", "ts": "2026-11-06T11:42:26-05:00"},
   {"who": "caller", "text": "Perfect, that's all, bye.", "ts": "2026-11-06T11:42:31-05:00"},
   {"who": "goose", "text": "Noted. Bye for now.", "ts": "2026-11-06T11:42:34-05:00"}]}
