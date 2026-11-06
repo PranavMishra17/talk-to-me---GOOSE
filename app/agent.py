@@ -630,9 +630,11 @@ class GooseAgent(DataTools, Agent):
         """Beat 6: the summary, once, for the panel and the task log. Also runs when the caller just hangs up."""
         if self.summary or self.persona != self.lead:
             return
-        ended = next((e[5:] for e in reversed(self.log) if e.startswith("end: ")), "caller hung up")
-        self.summary = slots.summary(self.agenda.slots, self.owner.title(), ended)
+        self.summary = slots.summary(self.agenda.slots, self.owner.title(), self._hangup())
         self.publish()
+
+    def _hangup(self):
+        return next((e[5:] for e in reversed(self.log) if e.startswith("end: ")), "caller hung up")
 
     def call_record(self, call_id, turns):
         """The record for GOOSE_DATA_DIR/calls. A request still waiting on a yes when the line dropped still counts."""
@@ -642,7 +644,8 @@ class GooseAgent(DataTools, Agent):
         c = self.contact
         return {"id": call_id, "started_at": self.started_at, "ended_at": _now(), "kind": "phone", "number": self.caller,
                 "contact": {k: c[k] for k in ("name", "relationship", "tier")} if c else None, "persona": self.persona,
-                "pack": self.pack_name, "summary": summary, "outcome": outcome, "actions": actions, "transcript": turns}
+                "owner": self.owner, "pack": self.pack_name, "summary": summary, "outcome": outcome, "hangup": self._hangup(),
+                "actions": actions, "transcript": turns}
 
     def _note(self, found):
         """S3-03: slots come from regex and tool arguments, never from an extra model call. True = a value changed."""

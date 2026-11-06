@@ -1,6 +1,6 @@
 """Call records: one JSON file per call. Seeds are committed in data/calls; live ones land in GOOSE_DATA_DIR/calls.
-Shape, which the web app depends on: {id, started_at, ended_at, kind, number, contact, persona, pack, summary,
-outcome, actions, transcript}. Pure: no livekit, and no model, so a record cannot fail at hang-up.
+Shape, which the web app depends on: {id, started_at, ended_at, kind, number, contact, persona, owner, pack, summary,
+outcome, hangup, actions, transcript}. Seeds have no owner or hangup: they are Pranav's. Pure: no livekit, and no model, so a record cannot fail at hang-up.
 """
 import json
 import re
@@ -10,6 +10,8 @@ from proxy_core.config import ROOT, data_root
 from proxy_core.slots import _message
 
 SEED = ROOT / "data" / "calls"
+CLEARED = "cleared"           # a file under the data root: the seeds stay out of the history
+DEFAULT_OWNER = "pranav"
 OUTCOMES = ("resolved", "needs_you", "info")
 _BAD_ENDS = ("hostile caller", "caller went quiet")
 _CODE_ENDS = (*_BAD_ENDS, "caller said goodbye", "caller confirmed")
@@ -19,16 +21,19 @@ def runtime_dir() -> Path:
     return data_root() / "calls"
 
 
-def list_calls() -> list[dict]:
-    """Newest first. A runtime file replaces the seed with the same id, which is how mark_done survives."""
+def list_calls(owner: str | None = None) -> list[dict]:
+    """Newest first, one owner's if named. A runtime file replaces the seed with the same id, which is how mark_done
+    survives. scripts/stage.py clear hides the seeds."""
     found = {}
-    for path in [*sorted(SEED.glob("*.json")), *sorted(runtime_dir().glob("*.json"))]:
+    seeds = [] if (data_root() / CLEARED).exists() else sorted(SEED.glob("*.json"))
+    for path in [*seeds, *sorted(runtime_dir().glob("*.json"))]:
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
             found[record["id"]] = record
         except (ValueError, KeyError, OSError):      # one bad file must not hide the rest
             continue
-    return sorted(found.values(), key=lambda c: c["started_at"], reverse=True)
+    mine = [c for c in found.values() if not owner or c.get("owner", DEFAULT_OWNER) == owner]
+    return sorted(mine, key=lambda c: c["started_at"], reverse=True)
 
 
 def get_call(call_id: str) -> dict | None:

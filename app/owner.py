@@ -24,7 +24,7 @@ class OwnerAgent(DataTools, Agent):
         self.persona, self.owner, self.pack_name, self.number, self.caller_tier = persona, owner, pack_name, number, tier
         self.started_at = datetime.now().astimezone().isoformat(timespec="seconds")
         self._last_event = ""
-        records = calls.list_calls()
+        records = calls.list_calls(self.owner)
         self._offer, self._brief = calls.offer(records), calls.brief(records, owner.title())
         now = datetime.now()
         today = f"{now:%A} {now.date()}, so tomorrow is {now.date() + timedelta(days=1)}"
@@ -98,7 +98,7 @@ class OwnerAgent(DataTools, Agent):
         """Every call, newest first: id, who, what happened, what is still open."""
         return json.dumps([{"id": c["id"], "who": (c["contact"] or {}).get("name", "unknown caller"), "summary": calls.to_owner(c["summary"], self.owner.title()),
                             "outcome": c["outcome"], "open": [a["text"] for a in c["actions"] if not a["done"]]}
-                           for c in calls.list_calls() if c["kind"] == "phone"], ensure_ascii=False)
+                           for c in calls.list_calls(self.owner) if c["kind"] == "phone"], ensure_ascii=False)
 
     @function_tool
     async def get_call(self, call_id: str) -> str:

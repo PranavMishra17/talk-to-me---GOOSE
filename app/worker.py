@@ -111,7 +111,7 @@ async def _run(ctx: JobContext, persona: str):
     agent = GooseAgent(persona, caller=number or meta.get("caller", ""), task=meta.get("task", "Take a message and coordinate."),
                        cfg=cfg, lead=meta.get("lead"), request=meta.get("request", ""),
                        voucher=(meta["requester_tier"], meta["requester_owner"]) if meta.get("request") else None, pack=pack_name)
-    if owner == vault.OWNER:
+    if not meta.get("request"):      # a summoned agent joins someone else's call; every call of an agent's own gets a record
         _save(ctx, session, agent)
     agent.room = ctx.room
     agent.floor = RoomFloor(ctx.room, ctx.api, persona, cfg)
