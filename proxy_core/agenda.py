@@ -8,6 +8,7 @@ CONFIRM_TOOLS = {"take_message", "propose_slot", "summon_agent", "request_permis
 _YES = re.compile(r"\b(yes|yeah|yep|yup|sure|ok|okay|please do|go ahead|do it|sounds good|correct|that's right|perfect|absolutely)\b", re.I)
 _NO = re.compile(r"\b(no(?! (?:problem|worries))|nope|not|don't|wait|hold on|never mind|nevermind|cancel)\b", re.I)
 _CHANGE = re.compile(r"\b(but|actually|instead|change)\b", re.I)
+_CLAIM = re.compile(r"\b(i.ll|i will|i.ve|i have|let (him|her|them)|pass\w*|sav\w+|note\w*|message|want me|should i|shall i|done|sent)\b", re.I)
 _BYE = re.compile(r"\b(goodbye|good bye|bye)\b|that'?s all", re.I)
 
 
@@ -17,6 +18,11 @@ def is_no(text: str) -> bool:
 
 def is_yes(text: str) -> bool:
     return bool(_YES.search(text)) and not is_no(text) and not _CHANGE.search(text)
+
+
+def claims_action(text: str) -> bool:
+    """Words that announce or ask about an action. On a gated turn only code may say those."""
+    return bool(_CLAIM.search(text))
 
 
 def is_bye(text: str) -> bool:

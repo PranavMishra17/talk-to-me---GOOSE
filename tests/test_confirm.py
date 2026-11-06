@@ -41,6 +41,7 @@ def test_yes_and_bye_words():
 
 def test_voice_shape():
     assert problems("Tomorrow at 2, or 9 in the morning?") == []
+    assert problems("Got it, just to be sure, is that 7 pm or 7 am?") == []
     assert problems("Monday, Tuesday, Wednesday, or Friday?") == ["4 options"]
     assert "list" in problems("Options:\n1. Monday\n2. Tuesday")
     assert problems("One. Two. Three.") == ["3 sentences"]

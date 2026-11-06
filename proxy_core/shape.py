@@ -10,8 +10,18 @@ def sentences(text: str) -> int:
 
 def options(text: str) -> int:
     """Rough count of offered options in the longest "a, b, or c" run; 0 when nothing is offered."""
-    runs = [s for s in re.split(r"[.?!]", text) if re.search(r"\bor\b", s)]
-    return max((r.count(",") + (1 if re.search(r",\s*or\b", r) else 2) for r in runs), default=0)
+    best = 0
+    for s in re.split(r"[.?!]", text):
+        if not re.search(r"\bor\b", s):
+            continue
+        head = re.split(r"\bor\b", s)[-2].strip().rstrip(",")   # short items just before the "or"; a clause is no option
+        items = 0
+        for part in reversed(head.split(",")):
+            if len(part.split()) > 3:
+                break
+            items += 1
+        best = max(best, max(items, 1) + 1)
+    return best
 
 
 def problems(text: str, read_back: bool = False) -> list[str]:
