@@ -20,10 +20,10 @@
   .box{border:3px solid var(--ink);box-shadow:5px 5px 0 var(--ink);padding:14px 16px;margin:14px 0}
   .warn{background:var(--balloon);color:#1A1423;border-color:#1A1423;box-shadow:5px 5px 0 #1A1423}
   code{font-family:Consolas,monospace;font-size:.92em;overflow-wrap:anywhere}
-  pre{margin:6px 0 12px;padding:10px 12px;border:2px solid var(--ink);overflow-x:auto}
+  pre{max-width:100%;margin:6px 0 12px;padding:10px 12px;border:2px solid var(--ink);overflow-x:auto}
   pre code{font-size:14px}
   ol.steps{list-style:none;margin:0;padding:0}
-  ol.steps li{display:grid;grid-template-columns:26px 1fr;gap:8px;padding:10px 0;border-top:2px solid var(--ink)}
+  ol.steps li{display:grid;grid-template-columns:26px minmax(0,1fr);gap:8px;padding:10px 0;border-top:2px solid var(--ink)}
   ol.steps input{width:20px;height:20px;margin:3px 0 0}
   ol.steps .expect{color:var(--mute);display:block}
   ol.steps .expect b{color:var(--ink)}
