@@ -15,6 +15,7 @@ from datetime import datetime
 from livekit import rtc
 from livekit.agents import AgentServer, JobContext, cli, room_io
 
+from app import native
 from app.agent import GooseAgent
 from app.owner import OwnerAgent
 from app.providers import build_session
@@ -24,6 +25,7 @@ from proxy_core.config import agent_name, load_config, load_env
 from proxy_core.personality import list_packs, load_pack
 
 load_env()
+native.harden()    # at import: this runs in every job process, before any stream or job thread
 logger = logging.getLogger("goose")
 server = AgentServer()
 

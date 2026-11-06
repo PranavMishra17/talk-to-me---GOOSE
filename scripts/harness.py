@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT), str(ROOT / "scripts")]
 import aiohttp
 from livekit import api, rtc
+
+from app import native
 from livekit.agents import inference
 
 import plan
@@ -246,6 +248,7 @@ def main():
         QUIET_S = 3.0       # a tool turn is two speeches with a gap: filler, then the answer
     a.tag = f"-{uuid.uuid4().hex[:6]}"      # a private agent name: other sessions may have workers on this project
     load_env()
+    native.harden()
     OUT.mkdir(exist_ok=True)
     log_path, maya_log = OUT / "worker.log", OUT / "worker_maya.log"
     proc = start_worker(a.persona, log_path, a.tag)
