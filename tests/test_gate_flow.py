@@ -207,18 +207,40 @@ def test_typed_turns_run_the_ladder_and_the_gate():
     assert stopped is None and len(SAVES(a)) == 1 and not a.agenda.pending
 
 
-def test_typing_and_holding_to_talk_turn_the_silence_ladder_off():
+def test_hold_to_talk_commits_once_however_the_release_arrives():
+    from livekit import rtc
+    from app.worker import _hold_to_talk
+
+    class Room:
+        def __init__(self):
+            self.on_ = {}
+            self.local_participant = SimpleNamespace(register_rpc_method=lambda name, fn: self.on_.__setitem__(name, fn))
+
+        def on(self, name, fn):
+            self.on_[name] = fn
+
     async def run():
         async with AgentSession(llm=Script([])) as session:
             agent = GooseAgent("goose", caller="+15550100999", cfg=load_config())
             await session.start(agent)
-            agent.on_mic(True)                                    # commits with no STT: must not raise
-            agent.on_user_state("away")
-            quiet = agent._quiet
-            agent.on_mic(False)
-            return agent, quiet
-    a, quiet = asyncio.run(run())
-    assert a.manual_input and quiet is None
+            room, commits, inputs = Room(), [], []
+            session.commit_user_turn = lambda **kw: commits.append(kw)
+            session.input.set_audio_enabled = inputs.append
+            _hold_to_talk(SimpleNamespace(is_fake_job=lambda: False, room=room), session, agent)
+            mic = SimpleNamespace(source=rtc.TrackSource.SOURCE_MICROPHONE)
+            human = SimpleNamespace(kind=rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD)
+            await room.on_["end_turn"](None)
+            room.on_["track_muted"](human, mic)                   # the same release, by the other signal
+            assert len(commits) == 1 and inputs == [False]
+            room.on_["track_unmuted"](human, mic)
+            await room.on_["start_turn"](None)
+            assert inputs == [False, True]
+            room.on_["track_muted"](human, mic)
+            await room.on_["end_turn"](None)
+            assert len(commits) == 2 and commits[0] == {"transcript_timeout": 1.5, "stt_flush_duration": 0.6}
+            agent.on_user_state("away")                           # quiet on purpose: no nudges
+            assert agent._quiet is None
+    asyncio.run(run())
 
 
 def test_a_typed_turn_carries_the_hook_note_to_the_model():

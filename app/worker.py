@@ -72,11 +72,50 @@ def _save(ctx, session, agent):
     ctx.add_shutdown_callback(at_shutdown)
 
 
+def _hold_to_talk(ctx, session, agent):
+    """The browser's hold button sends start_turn and end_turn, and also mutes the mic. Either signal works and a release
+    commits once. RoomIO ignores mute, and a muted track just stops sending frames, so VAD alone would never end the turn."""
+    if ctx.is_fake_job():
+        return
+    muted = [False]
+
+    def mic(state):                  # the SDK's push-to-talk pattern: detach, then commit, which flushes STT
+        agent.manual_input = True    # quiet on purpose, so the silence ladder stays out of it
+        if state != muted[0]:
+            muted[0] = state
+            session.input.set_audio_enabled(not state)
+            if state:
+                session.commit_user_turn(transcript_timeout=1.5, stt_flush_duration=0.6)
+
+    async def start_turn(_):
+        try:
+            session.interrupt()
+            session.clear_user_turn()
+        except RuntimeError:         # a closing session, or a hang-up line that must finish
+            pass
+        mic(False)
+        return ""
+
+    async def end_turn(_):
+        mic(True)
+        return ""
+
+    def on_track(participant, publication, state):
+        if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD and publication.source == rtc.TrackSource.SOURCE_MICROPHONE:
+            mic(state)
+
+    ctx.room.on("track_muted", lambda p, pub: on_track(p, pub, True))
+    ctx.room.on("track_unmuted", lambda p, pub: on_track(p, pub, False))
+    ctx.room.local_participant.register_rpc_method("start_turn", start_turn)
+    ctx.room.local_participant.register_rpc_method("end_turn", end_turn)
+
+
 async def _run_owner(ctx, session, agent, kind, noise=None):
     """Only the participant kind that earned this session is heard, so a phone leg never joins a web one."""
     _save(ctx, session, agent)
     await session.start(room=ctx.room, agent=agent, room_options=room_io.RoomOptions(
         participant_kinds=[kind], audio_input=room_io.AudioInputOptions(noise_cancellation=noise)))
+    _hold_to_talk(ctx, session, agent)
 
 
 async def _run(ctx: JobContext, persona: str):
@@ -137,12 +176,6 @@ async def _run(ctx: JobContext, persona: str):
     link = {"participant_identity": meta["link"]} if meta.get("link") else {}
     if link:
         await ctx.connect()     # RoomIO touches local_participant at once when given an identity
-    def mic(participant, publication, muted):      # hold-to-talk: RoomIO ignores mute, and a muted track just stops sending frames
-        if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD and publication.source == rtc.TrackSource.SOURCE_MICROPHONE:
-            agent.on_mic(muted)
-    ctx.room.on("track_muted", lambda p, pub: mic(p, pub, True))
-    ctx.room.on("track_unmuted", lambda p, pub: mic(p, pub, False))
-
     await session.start(room=ctx.room, agent=agent, room_options=room_io.RoomOptions(**link,
         participant_kinds=[rtc.ParticipantKind.PARTICIPANT_KIND_SIP, rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD,
                            rtc.ParticipantKind.PARTICIPANT_KIND_AGENT],   # AGENT so the other agent's speech is visible
@@ -150,6 +183,7 @@ async def _run(ctx: JobContext, persona: str):
         audio_input=room_io.AudioInputOptions(noise_cancellation=_noise(cfg))))
     for p in () if ctx.is_fake_job() else ctx.room.remote_participants.values():   # the console's room is a mock
         caller_id(p)
+    _hold_to_talk(ctx, session, agent)
     agent.publish()
 
 

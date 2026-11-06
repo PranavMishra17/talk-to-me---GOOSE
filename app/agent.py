@@ -702,13 +702,6 @@ class GooseAgent(DataTools, Agent):
                 return
             session.generate_reply(user_input=message, chat_ctx=ctx)
 
-    def on_mic(self, muted):
-        """Hold-to-talk. The SDK's own pattern: detach the input, then commit, which flushes STT and ends the turn at once."""
-        self.manual_input = True
-        self.session.input.set_audio_enabled(not muted)
-        if muted:
-            self.session.commit_user_turn(transcript_timeout=1.5, stt_flush_duration=0.6)
-
     def _note(self, found):
         """S3-03: slots come from regex and tool arguments, never from an extra model call. True = a value changed."""
         before = dict(self.agenda.slots)
