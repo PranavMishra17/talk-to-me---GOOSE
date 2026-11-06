@@ -21,6 +21,7 @@ class FloorState:
     addressed_to: str | None = None
     queue: list[str] = field(default_factory=list)
     agent_streak: int = 0  # consecutive agent turns since a human last spoke
+    last_agent: str | None = None  # who took the floor last; a second speech in one turn is not a new turn
 
     def to_json(self) -> str:
         return json.dumps(asdict(self))
@@ -60,13 +61,32 @@ def human_preempt(st: FloorState, human_id: str, now: float) -> FloorState:
     return replace(st, holder=f"human:{human_id}", since=now, agent_streak=0)
 
 
-def agent_spoke(st: FloorState) -> FloorState:
-    return replace(st, agent_streak=st.agent_streak + 1)
+def agent_spoke(st: FloorState, agent: str) -> FloorState:
+    return replace(st, last_agent=agent, agent_streak=st.agent_streak + (st.last_agent != agent))
 
 
 def must_yield(st: FloorState, cap: int = 2) -> bool:
     """After cap consecutive agent turns, agents stop and wait for a human."""
     return st.agent_streak >= cap
+
+
+def try_claim(st: FloorState, agent: str, now: float, human_stopped: float | None = None,
+              cap: int = 2, lease_s: float = LEASE_S) -> tuple[str, FloorState]:
+    """"take", "wait" or "drop", with the state to write on take.
+    human_stopped: this speech answers the human turn that ended then; None = an agent-driven line."""
+    st = expire_lease(st, now, lease_s)
+    rival = st.holder or st.last_agent
+    if human_stopped is not None and rival not in (None, agent) and st.since >= human_stopped:
+        return "drop", st  # the other agent already took this human turn
+    if st.holder == agent:
+        return "take", st
+    if st.holder:
+        return "wait", st
+    if human_stopped is not None:
+        st = replace(st, agent_streak=0, last_agent=None)
+    elif must_yield(st, cap) and st.last_agent != agent:
+        return "drop", st  # agents have had their turns; a human goes next
+    return "take", agent_spoke(replace(st, holder=agent, since=now), agent)
 
 
 class RoomMetadata:

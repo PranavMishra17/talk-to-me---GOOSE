@@ -21,6 +21,11 @@ REQUIRED = {
 }
 
 
+def agent_name(persona: str) -> str:
+    """Dispatch name. GOOSE_AGENT_TAG keeps a test run off workers other sessions registered on this project."""
+    return persona + os.environ.get("GOOSE_AGENT_TAG", "")
+
+
 def load_env() -> None:
     """Load ROOT/.env into os.environ. Values are never printed or logged."""
     from dotenv import load_dotenv

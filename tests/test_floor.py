@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # no pytest pythonpath configured
 
 from proxy_core.floor import (FloorState, RoomMetadata, choose_speaker, expire_lease,
-                              human_preempt, release_floor, request_floor)
+                              human_preempt, release_floor, request_floor, try_claim)
 
 
 def test_grant_when_free_and_idempotent():
@@ -76,3 +76,24 @@ def test_human_holding_floor_means_silence():
     f = human_preempt(FloorState(), "pranav", 1)
     assert choose_speaker("ash", f, "ash") is None
     assert choose_speaker("ash", f, "ash", mid_tool_call="ash") is None
+
+
+def test_claim_counts_turns_and_yields_to_human():
+    s = FloorState()
+    v, s = try_claim(s, "ash", 1); assert v == "take" and s.agent_streak == 1
+    assert try_claim(s, "maya", 2)[0] == "wait"
+    s = release_floor(s, "ash", 3)
+    v, s = try_claim(s, "ash", 4); assert v == "take" and s.agent_streak == 1   # same agent, same turn
+    s = release_floor(s, "ash", 5)
+    v, s = try_claim(s, "maya", 6); assert v == "take" and s.agent_streak == 2
+    s = release_floor(s, "maya", 7)
+    assert try_claim(s, "ash", 8)[0] == "drop"                                  # cap: agents stop
+    v, s = try_claim(s, "ash", 9, human_stopped=8.5); assert v == "take" and s.agent_streak == 1
+
+
+def test_claim_loses_a_human_turn_the_other_agent_took():
+    s = try_claim(FloorState(), "maya", 5, human_stopped=4)[1]
+    assert try_claim(s, "ash", 6, human_stopped=4)[0] == "drop"                 # while she holds it
+    assert try_claim(release_floor(s, "maya", 7), "ash", 8, human_stopped=4)[0] == "drop"   # and after she finished
+    old = try_claim(FloorState(), "maya", 1)[1]
+    assert try_claim(old, "ash", 6, human_stopped=4)[0] == "wait"               # she was cut off: wait for her release

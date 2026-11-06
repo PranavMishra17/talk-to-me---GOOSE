@@ -20,6 +20,15 @@ def get_facts(person: str, caller_tier: str, personas: dict | None = None) -> di
     return {f["key"]: f["value"] for f in p.get("facts", []) if _rank(f["tier"]) <= _rank(caller_tier)}
 
 
+def summoned_tier(owner: str, caller: str, requester_tier: str, requester_owner: str, personas: dict | None = None) -> str:
+    """Tier for a caller another assistant vouches for. The owner's own contact list wins; a stranger gets the
+    requester's tier, capped by how far the owner trusts the requester."""
+    own = resolve_tier(owner, caller, personas)
+    if own != "public":
+        return own
+    return TIERS[min(_rank(requester_tier), _rank(resolve_tier(owner, requester_owner, personas)))]
+
+
 def resolve_tier(person: str, identity: str, personas: dict | None = None) -> str:
     """Tier from a VERIFIED contact name or caller number only.
     A caller's *claimed* identity ("I am Rohan") must never be passed here: it never raises tier."""

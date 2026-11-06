@@ -26,3 +26,11 @@ def test_facts_by_tier():
     assert "phone" not in get_facts("pranav", "family")
     assert "phone" in get_facts("pranav", "private")
     assert get_facts("pranav", "bogus") == get_facts("pranav", "public")
+
+
+def test_summoned_tier_caps_at_requesters_standing():
+    from proxy_core.policy import summoned_tier
+    assert summoned_tier("rohan", "+15550100222", "friends", "pranav") == "friends"   # Sam: vouched for by Pranav
+    assert summoned_tier("rohan", "+15550100222", "family", "pranav") == "friends"    # Rohan trusts Pranav only so far
+    assert summoned_tier("rohan", "", "public", "pranav") == "public"                 # a stranger stays one
+    assert summoned_tier("rohan", "+15550100444", "friends", "pranav") == "family"    # Lena is Rohan's own contact

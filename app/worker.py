@@ -16,7 +16,8 @@ from livekit.agents import AgentServer, JobContext, cli, room_io
 
 from app.agent import GooseAgent
 from app.providers import build_session
-from proxy_core.config import load_config, load_env
+from app.room_floor import RoomFloor
+from proxy_core.config import agent_name, load_config, load_env
 from proxy_core.personality import load_pack
 
 load_env()
@@ -46,10 +47,15 @@ async def _run(ctx: JobContext, persona: str):
     session.on("conversation_item_added", lambda ev: getattr(ev.item, "role", "") == "assistant" and metric(
         {"type": "assistant_turn", **(getattr(ev.item, "metrics", None) or {})}))
     agent = GooseAgent(persona, caller=meta.get("caller", ""), task=meta.get("task", "Take a message and coordinate."),
-                       cfg=cfg, lead=meta.get("lead"))
+                       cfg=cfg, lead=meta.get("lead"), request=meta.get("request", ""),
+                       voucher=(meta["requester_tier"], meta["requester_owner"]) if meta.get("request") else None)
     agent.room = ctx.room
+    agent.floor = RoomFloor(ctx.room, ctx.api, persona, cfg)
+    # S2-05: RoomIO only registers lk.chat, so this topic is free. Agent speech is read, never re-transcribed.
+    ctx.room.register_text_stream_handler("lk.transcription", lambda r, who: asyncio.ensure_future(agent.on_transcript(r, who)))
     session.on("user_input_transcribed", lambda ev: ev.is_final and agent.on_stt_final(ev.transcript))
-    session.on("agent_state_changed", lambda ev: ev.old_state == "speaking" and agent.echo.ended(time.time()))
+    session.on("agent_state_changed", lambda ev: ev.old_state == "speaking" and agent.spoke_end(time.time()))
+    session.on("user_state_changed", lambda ev: ev.old_state == "speaking" and setattr(agent, "human_stopped", time.time()))
     session.on("user_state_changed", lambda ev: agent.on_user_state(ev.new_state))
     session.on("close", lambda ev: agent.record())
     session.on("conversation_item_added", lambda ev: agent.publish())
@@ -61,7 +67,11 @@ async def _run(ctx: JobContext, persona: str):
             asyncio.ensure_future(agent.set_caller(number))
     ctx.room.on("participant_connected", caller_id)
 
-    await session.start(room=ctx.room, agent=agent, room_options=room_io.RoomOptions(
+    # A summoned agent names the caller: with AGENT in participant_kinds, RoomIO would otherwise link it to Ash.
+    link = {"participant_identity": meta["link"]} if meta.get("link") else {}
+    if link:
+        await ctx.connect()     # RoomIO touches local_participant at once when given an identity
+    await session.start(room=ctx.room, agent=agent, room_options=room_io.RoomOptions(**link,
         participant_kinds=[rtc.ParticipantKind.PARTICIPANT_KIND_SIP, rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD,
                            rtc.ParticipantKind.PARTICIPANT_KIND_AGENT],   # AGENT so the other agent's speech is visible
         audio_input=room_io.AudioInputOptions(noise_cancellation=_noise(cfg))))
@@ -75,7 +85,7 @@ async def _run(ctx: JobContext, persona: str):
 PERSONA = os.environ.get("GOOSE_PERSONA", "ash")
 
 
-@server.rtc_session(agent_name=PERSONA)
+@server.rtc_session(agent_name=agent_name(PERSONA))
 async def entry(ctx: JobContext):
     await _run(ctx, PERSONA)
 

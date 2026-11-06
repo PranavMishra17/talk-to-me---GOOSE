@@ -50,6 +50,12 @@ def mock_planner(task_text: str) -> list[AgendaItem]:
         AgendaItem("close", "Wrap up and say goodbye", ["goodbye"]),
     ]
 
+def summoned_planner(request: str) -> list[AgendaItem]:
+    """A summoned agent gets a request, not the caller's agenda: check the tier, then answer or decline."""
+    return [AgendaItem("check_tier", "Know the caller's tier", ["tier"]),
+            AgendaItem("answer", f"Answer or decline: {request}", ["answered"])]
+
+
 class Agenda:
     def __init__(self, max_turns_per_call: int = 40):
         self.items: list[AgendaItem] = []
