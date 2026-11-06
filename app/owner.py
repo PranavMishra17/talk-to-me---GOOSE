@@ -11,7 +11,7 @@ from pathlib import Path
 from livekit.agents import Agent, function_tool
 
 from app.tools import DataTools
-from proxy_core import calls
+from proxy_core import calls, vault
 from proxy_core.personality import load_pack, render_style
 
 logger = logging.getLogger("goose")
@@ -23,7 +23,8 @@ class OwnerAgent(DataTools, Agent):
     def __init__(self, persona, owner, pack_name, number="", tier="private"):
         self.persona, self.owner, self.pack_name, self.number, self.caller_tier = persona, owner, pack_name, number, tier
         self.started_at = datetime.now().astimezone().isoformat(timespec="seconds")
-        super().__init__(instructions=PROMPT.format(assistant=persona.title(), owner=owner.title(), style=render_style(load_pack(pack_name), "own")))
+        today = f"{datetime.now():%A} {datetime.now().day} {datetime.now():%B %Y}"
+        super().__init__(instructions=PROMPT.format(assistant=persona.title(), owner=owner.title(), today=today, style=render_style(load_pack(pack_name), "own")))
 
     async def on_enter(self):
         asyncio.ensure_future(self._brief())
@@ -44,6 +45,30 @@ class OwnerAgent(DataTools, Agent):
         return {"id": call_id, "started_at": self.started_at, "ended_at": datetime.now().astimezone().isoformat(timespec="seconds"),
                 "kind": "owner", "number": self.number, "contact": None, "persona": self.persona, "pack": self.pack_name,
                 "summary": f"{self.owner.title()} talked to {self.persona.title()}.", "outcome": "info", "actions": [], "transcript": turns}
+
+    @function_tool
+    async def add_calendar_event(self, title: str, start: str, end: str = "", where: str = "") -> str:
+        """Add an entry to the owner's diary. start and end are ISO, like 2026-11-07T19:00:00. end defaults to an hour later."""
+        try:
+            return f"Added {vault.add_event(title, start, end, where)['title']}."
+        except ValueError:
+            return "That needs a full date and time."
+
+    @function_tool
+    async def update_calendar_event(self, event: str, title: str = "", start: str = "", end: str = "", where: str = "") -> str:
+        """Change a diary entry. event is words from its title; leave a field empty to keep it. start and end are ISO."""
+        try:
+            found = vault.update_event(event, self.caller_tier, title=title, start=start, end=end, where=where)
+        except ValueError:
+            return "That needs a full date and time."
+        if isinstance(found, dict):
+            return f"Updated {found['title']}."
+        return f"Which one: {', '.join(found)}?" if found else "No entry like that."
+
+    @function_tool
+    async def add_task(self, text: str, due: str = "") -> str:
+        """Add a task for the owner. due is YYYY-MM-DD, or empty for today."""
+        return f"Added {vault.add_task(text, due)['text']}."
 
     @function_tool
     async def list_calls(self) -> str:

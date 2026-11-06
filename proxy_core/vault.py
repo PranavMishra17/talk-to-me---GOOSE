@@ -4,7 +4,7 @@ import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from proxy_core.config import ROOT
+from proxy_core.config import ROOT, data_root
 from proxy_core.policy import TIERS
 from proxy_core.speech import spoken_day, spoken_span
 
@@ -25,9 +25,63 @@ def _rank(tier) -> int:
     return TIERS.index(tier) if tier in TIERS else len(TIERS) - 1
 
 
-def _load(name: str, dir=DATA) -> list[dict]:
-    path = dir / f"{name}.json"
+def _read(path: Path) -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
+
+
+def _edits(name: str) -> Path:
+    return data_root() / "data" / f"{name}.json"
+
+
+def _load(name: str, dir=DATA) -> list[dict]:
+    """The committed file, with the owner's own changes on top: a record with the same id replaces the original."""
+    rows = _read(dir / f"{name}.json")
+    if dir != DATA:
+        return rows
+    try:
+        edits = _read(_edits(name))
+    except ValueError:                # a broken overlay must not take reads down
+        return rows
+    return list({r.get("id", i): r for i, r in enumerate([*rows, *edits])}.values())
+
+
+def _save(name: str, record: dict) -> dict:
+    """Written to the overlay, so data/ stays as committed and a change survives a restart."""
+    path = _edits(name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    kept = [r for r in _read(path) if r["id"] != record["id"]]
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps([*kept, record], indent=1, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(path)
+    return record
+
+
+def _when(text: str) -> str:
+    """An ISO date and time, or ValueError. A bare time gets the local zone, as everything else in the diary has one."""
+    return datetime.fromisoformat(text).astimezone().isoformat(timespec="seconds")
+
+
+def add_event(title: str, start: str, end: str = "", where: str = "", tier: str = "private") -> dict:
+    """Private by default: a caller sees a new entry as busy until the owner says otherwise."""
+    begin = _when(start)
+    finish = _when(end) if end else (datetime.fromisoformat(begin) + timedelta(hours=1)).isoformat(timespec="seconds")
+    return _save("calendar", {"id": f"c-{os.urandom(3).hex()}", "start": begin, "end": finish, "title": title, "where": where, "with": [], "tier": tier})
+
+
+def update_event(event: str, tier: str, **changes) -> dict | list[str]:
+    """event = words from its title. Returns the record, or the titles it could be when that is not exactly one.
+    Only entries the tier can see match, so a reply never names one it cannot."""
+    words = event.lower().split()
+    allowed = {e["id"] for e in visible(_load("calendar"), tier)}
+    found = [e for e in _load("calendar") if e["id"] in allowed and all(w in e["title"].lower() for w in words)]
+    if len(found) != 1:
+        return [e["title"] for e in found]
+    changes = {k: _when(v) if k in ("start", "end") else v for k, v in changes.items() if v}
+    return _save("calendar", {**found[0], **changes})
+
+
+def add_task(text: str, due: str = "", tier: str = "private") -> dict:
+    return _save("tasks", {"id": f"t-{os.urandom(3).hex()}", "text": text, "due": due or date.today().isoformat(), "people": [], "done": False, "tier": tier})
 
 
 def visible(records: list[dict], tier: str) -> list[dict]:
