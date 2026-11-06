@@ -11,6 +11,8 @@ dependencies = [
   "httpx",
   "fastapi",
   "uvicorn",
+  "livekit-plugins-openai>=1.8,<1.9",
+  "livekit-plugins-cartesia>=1.8,<1.9",
 ]
 # Do NOT add livekit-plugins-turn-detector or livekit-plugins-silero (inference.* replaces them).
 
