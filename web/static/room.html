@@ -102,11 +102,13 @@
     <div class="caller"><span class="shout" id="who">Waiting for a caller</span><span id="tier" hidden></span></div>
     <p id="talking"></p>
     <p id="confirm" role="status" hidden></p>
+    <div id="input"></div>
     <div id="lines" aria-live="polite"><p id="hint">The conversation appears here once you join.</p></div>
   </div>
   <div class="grid" id="grid"></div>
 </main>
 <script type="module">
+import {inputBar, liveInput} from '/talkmode.js';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const cap = s => String(s ?? '').replace(/^human:/, '').replace(/^./, c => c.toUpperCase());
@@ -119,6 +121,7 @@ const owner = new URLSearchParams(location.search).get('owner') || 'pranav';
 const opened = Date.now();
 let health = {}, live = null, notice = null;   // a join problem stays up past the next poll
 let joined = null, owners = new Set(), speaking = null, ended = false, record = null, hungUp = null, lastAgents = {};
+const bar = inputBar($('input'), text => line(`typed-${Date.now()}`, joined?.name?.split(' ')[0] || 'Caller', false, text));
 const jobs = new Set();   // a call record's id is its agent's job id, and the agent's identity is agent-<job id>
 
 $('name').textContent = `Room ${room}`;
@@ -242,6 +245,7 @@ function line(seg, who, goose, text) {   // one bubble per segment; a later piec
 }
 
 function left() {
+  bar.detach();
   live = null;
   ended = true;
   speaking = null;
@@ -266,11 +270,13 @@ function mockJoin() {   // GOOSE_MOCK: the same view, scripted, no room
       if (owner === 'skyler') { hungUp = {why: 'The caller kept shouting.'}; left(); }
     }
   }, 1400);
+  bar.attach({hasMic: true, mic(on) { if (on || speaking === me) speaking = on ? me : null; }, turn() {},
+    send() { setTimeout(() => line(`reply-${Date.now()}`, owner === 'skyler' ? 'Jesse' : 'Goose', true, 'Got it.'), 800); }});
   return {disconnect() { clearInterval(t); left(); }};
 }
 
 async function liveJoin(url, token) {
-  const {Room, RoomEvent} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2.15.4/+esm');
+  const {Room, RoomEvent, createLocalAudioTrack} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2.15.4/+esm');
   const lk = new Room();
   const label = identity => {
     if (identity === lk.localParticipant.identity) return joined.name?.split(' ')[0] || 'Caller';
@@ -291,7 +297,7 @@ async function liveJoin(url, token) {
   lk.on(RoomEvent.Disconnected, left);
   try {
     await lk.connect(url, token);
-    await lk.localParticipant.setMicrophoneEnabled(true);
+    bar.attach(await liveInput(lk, createLocalAudioTrack));
   } catch (e) { lk.off(RoomEvent.Disconnected, left); lk.disconnect(); throw e; }
   lk.startAudio().catch(() => addEventListener('click', () => lk.startAudio(), {once: true}));   // a browser may want one click first
   return lk;

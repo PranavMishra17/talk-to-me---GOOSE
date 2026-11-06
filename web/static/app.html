@@ -135,10 +135,12 @@
   <div class="orb" aria-hidden="true"></div>
   <p id="state" role="status">Calling Goose</p>
   <div id="lines" aria-live="polite"></div>
+  <div id="input" style="flex:none;width:100%;max-width:640px"></div>
   <button id="end">End talk</button>
 </div>
 
 <script type="module">
+import {inputBar, liveInput} from '/talkmode.js';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const get = async url => { const r = await fetch(url); if (!r.ok) throw new Error(`${url} answered ${r.status}`); return r.json(); };
@@ -247,6 +249,7 @@ async function loadLive(room) {
 
 /* Talk */
 const LK = 'https://cdn.jsdelivr.net/npm/livekit-client@2.15.4/+esm';
+const bar = inputBar($('input'), text => say(`typed-${Date.now()}`, 'you', text));
 let talk = null;   // {end()} while a session is open
 
 function setState(mode, text) { $('talk').className = mode; $('state').textContent = text; }
@@ -272,11 +275,13 @@ function mockTalk() {   // GOOSE_MOCK: same view, scripted, no room
     setState(mode, label); say(i, who, text);
     if (++i === script.length) clearInterval(t);
   }, 1200);
+  bar.attach({hasMic: true, mic(on) { if (on) setState('you', "You're talking"); }, turn() {},
+    send() { setTimeout(() => say(`reply-${Date.now()}`, 'goose', 'Got it.'), 800); }});
   return {end() { clearInterval(t); }};
 }
 
 async function liveTalk({url, token}) {
-  const {Room, RoomEvent} = await import(LK);
+  const {Room, RoomEvent, createLocalAudioTrack} = await import(LK);
   const room = new Room();
   let agent = null, you = false;
   const show = () => you ? setState('you', "You're talking")
@@ -303,9 +308,9 @@ async function liveTalk({url, token}) {
   const session = {end() { clearTimeout(late); room.disconnect(); }};
   try {
     await room.connect(url, token);
-    await room.localParticipant.setMicrophoneEnabled(true);
+    bar.attach(await liveInput(room, createLocalAudioTrack));
     await room.startAudio();
-  } catch (e) { session.end(); throw e; }   // no mic: leave, or the room stays open with Goose in it
+  } catch (e) { session.end(); throw e; }   // leave, or the room stays open with Goose in it
   show();
   return session;
 }
@@ -313,6 +318,7 @@ async function liveTalk({url, token}) {
 function endTalk() {
   const t = talk;
   talk = null;
+  bar.detach();
   t?.end?.();
   document.querySelectorAll('body > audio').forEach(a => a.remove());
 }
