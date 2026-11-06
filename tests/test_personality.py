@@ -33,5 +33,5 @@ def test_unknown_pack():
 
 def test_nudge_differs_and_knob():
     for step in range(3):
-        assert len({nudge_text(load_pack(n), step) for n in NAMES}) == 3
+        assert len({nudge_text(load_pack(n), step) for n in NAMES}) == len(NAMES)
     assert knob(load_pack("jesse"), "patience_turns") == 2

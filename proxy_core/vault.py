@@ -1,12 +1,15 @@
 """Pranav's mock data, filtered by tier in code so the model never sees a record above the caller's tier. No livekit."""
 import json
+import os
 from datetime import datetime
+from pathlib import Path
 
 from proxy_core.config import ROOT
 from proxy_core.policy import TIERS
 
 DATA = ROOT / "data"
 OWNER = "pranav"              # whose data this is; another owner's assistant reads nothing from here
+PHONE_MAX = "family"          # caller ID can be spoofed, so no phone call reaches private data, not even the owner's number
 
 
 def _rank(tier) -> int:
@@ -62,9 +65,24 @@ def _digits(number: str) -> str:
     return "".join(c for c in number if c.isdigit())
 
 
+def phone_tier(tier: str) -> str:
+    return TIERS[min(TIERS.index(tier), TIERS.index(PHONE_MAX))]
+
+
+def _local(dir) -> list[dict]:
+    """Real numbers, pasted in by hand, so a bad file or entry is skipped: it must never take a call down."""
+    try:
+        rows = json.loads(Path(os.environ.get("GOOSE_CONTACTS_LOCAL") or dir / "contacts.local.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    rows = rows.get("contacts", []) if isinstance(rows, dict) else rows
+    return [{"relationship": "contact", "notes": "", **c, "tier": c.get("tier") if c.get("tier") in TIERS else "public"}
+            for c in rows if isinstance(c, dict) and c.get("name") and isinstance(c.get("numbers"), list)]
+
+
 def contacts(dir=DATA) -> list[dict]:
-    """contacts.json merged with the gitignored contacts.local.json. A local entry replaces the same name."""
-    return list({c["name"]: c for c in _load("contacts", dir) + _load("contacts.local", dir)}.values())
+    """contacts.json merged with the gitignored local file. A local entry replaces the same name."""
+    return list({c["name"]: c for c in _load("contacts", dir) + _local(dir)}.values())
 
 
 def find_contact(number: str, owner: str = OWNER, dir=DATA) -> dict | None:
@@ -77,7 +95,7 @@ def find_contact(number: str, owner: str = OWNER, dir=DATA) -> dict | None:
 
 def caller_context(contact: dict, past_calls: list[dict], dir=DATA) -> str:
     """The short brief a known caller's prompt carries. past_calls are this person's own, newest first."""
-    tier, first = contact["tier"], contact["name"].split()[0]
+    tier, first = phone_tier(contact["tier"]), contact["name"].split()[0]
     lines = [f"Caller: {contact['name']}, {contact['relationship']} of the owner. {contact.get('notes', '')}".strip()]
     lines += [f"Last call {c['started_at'][:10]}: {c['summary']}" for c in past_calls[:2]]
     mine = sorted((m for m in visible(_load("gmail", dir), tier) if first in m["from"]), key=lambda m: m["date"])

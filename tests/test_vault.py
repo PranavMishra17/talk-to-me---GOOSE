@@ -33,7 +33,22 @@ def test_unlabelled_record_counts_as_private(tmp_path):
     assert len(vault.search_email("", "private", tmp_path)) == 2
 
 
-def test_contact_needs_the_number_and_the_owner(tmp_path):
+def test_a_bad_local_file_never_takes_a_call_down(tmp_path, monkeypatch):
+    monkeypatch.delenv("GOOSE_CONTACTS_LOCAL", raising=False)
+    (tmp_path / "contacts.json").write_text('[{"name": "Sam", "numbers": ["+1555"], "tier": "friends"}]')
+    (tmp_path / "contacts.local.json").write_text('{"contacts": [{"name": "half')
+    assert vault.find_contact("+1555", dir=tmp_path)["name"] == "Sam"
+    (tmp_path / "contacts.local.json").write_text('{"contacts": [{"name": "X", "numbers": ["+1"], "tier": "boss"}, {"numbers": ["+2"]}, 7]}')
+    assert vault.find_contact("+1", dir=tmp_path)["tier"] == "public" and vault.find_contact("+2", dir=tmp_path) is None
+
+
+def test_private_never_reaches_the_phone():
+    assert vault.phone_tier("private") == "family" and vault.phone_tier("friends") == "friends"
+    assert "18,240" not in str(vault.caller_context({"name": "Beacon Bank", "relationship": "owner", "tier": "private"}, []))
+
+
+def test_contact_needs_the_number_and_the_owner(tmp_path, monkeypatch):
+    monkeypatch.delenv("GOOSE_CONTACTS_LOCAL", raising=False)
     (tmp_path / "contacts.json").write_text('[{"name": "Sam", "numbers": ["+1 555 222"], "tier": "friends"}]')
     assert vault.find_contact("+1555222", dir=tmp_path)["name"] == "Sam"
     (tmp_path / "contacts.local.json").write_text('[{"name": "Sam", "numbers": ["+1999"], "tier": "family"}]')

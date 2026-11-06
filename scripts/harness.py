@@ -149,7 +149,7 @@ async def session(a, log_path, proc):
     try:
         await lk.room.create_room(api.CreateRoomRequest(name=name, empty_timeout=30))
         await lk.agent_dispatch.create_dispatch(api.CreateAgentDispatchRequest(
-            agent_name=a.persona, room=name))
+            agent_name=a.persona, room=name, metadata=a.meta))
         token = api.AccessToken(key, secret).with_identity("harness-caller").with_kind("sip" if a.sip else "standard").with_attributes({"sip.phoneNumber": a.caller} if a.caller else {}).with_grants(
             api.VideoGrants(room_join=True, room=name)).to_jwt()
         c = Caller(room)
@@ -194,6 +194,7 @@ def main():
     ap.add_argument("--prefix", default="harness-", help="room name prefix; call- makes the web panel follow the room")
     ap.add_argument("--hold", type=float, default=0, help="stay silent this many seconds after the last line")
     ap.add_argument("--sip", action="store_true", help="join as a SIP participant, so hang-up and BVC run the phone path")
+    ap.add_argument("--meta", default="", help="dispatch metadata, as the web app sends it: {\"mode\": \"owner\"} or {\"pack\": \"jesse\"}")
     ap.add_argument("--no-log", action="store_true", help="skip the dashboard log line")
     a = ap.parse_args()
     a.say = a.say or ["Hi, it's Sam."]

@@ -1,26 +1,33 @@
-"""Owner session: Pranav talks to Goose from the web app. A separate agent, so nothing here runs on a phone call.
-Dispatch metadata {"mode": "owner"} selects it, and a SIP dispatch carries no metadata, so a caller cannot reach it.
+"""Owner session: Pranav talks to Goose. A separate agent, so none of this runs on a caller's phone call.
+Dispatch metadata {"mode": "owner"} selects it for the web app; a SIP dispatch carries no metadata. A number marked
+relationship owner in the contact book gets it on the phone too, with the tier capped: caller ID can be spoofed.
 """
 import json
+from datetime import datetime
 from pathlib import Path
 
 from livekit.agents import Agent, function_tool
 
 from app.tools import DataTools
 from proxy_core import calls
-from proxy_core.personality import render_style
+from proxy_core.personality import load_pack, render_style
 
 PROMPT = (Path(__file__).parent / "prompts" / "owner.txt").read_text(encoding="utf-8")
 
 
 class OwnerAgent(DataTools, Agent):
-    def __init__(self, persona, owner, pack):
-        self.persona, self.owner, self.caller_tier = persona, owner, "private"
-        self.log: list[str] = []
-        super().__init__(instructions=PROMPT.format(assistant=persona.title(), owner=owner.title(), style=render_style(pack)))
+    def __init__(self, persona, owner, pack_name, number="", tier="private"):
+        self.persona, self.owner, self.pack_name, self.number, self.caller_tier = persona, owner, pack_name, number, tier
+        self.started_at = datetime.now().astimezone().isoformat(timespec="seconds")
+        super().__init__(instructions=PROMPT.format(assistant=persona.title(), owner=owner.title(), style=render_style(load_pack(pack_name))))
 
     async def on_enter(self):
         self.session.say(calls.brief(calls.list_calls(), self.owner.title()))
+
+    def call_record(self, call_id, turns):
+        return {"id": call_id, "started_at": self.started_at, "ended_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "kind": "owner", "number": self.number, "contact": None, "persona": self.persona, "pack": self.pack_name,
+                "summary": f"{self.owner.title()} talked to {self.persona.title()}.", "outcome": "info", "actions": [], "transcript": turns}
 
     @function_tool
     async def list_calls(self) -> str:

@@ -14,13 +14,10 @@ tool_filler:
 farewell:
   - "Good day."
   - "I shall bid you good day."
-<<<<<<< HEAD
 fish_voice: 933563129e564b19a115bedd57b7406a  # Sarah, LiveKit Fish docs
-=======
 greeting:
   known: "Good day, {name}. {assistant} speaking. How may I help?"
   unknown: "Good day. {assistant} speaking, {owner}'s assistant. To whom am I speaking?"
->>>>>>> 3c39a4b (Vault, contacts, call records, owner agent and Goose pack as new modules)
 confirm:
   take_message: "Shall I relay that to {owner}?"
   propose_slot: "Shall I propose that time?"
