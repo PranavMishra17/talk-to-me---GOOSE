@@ -11,3 +11,4 @@ SETUP.html
 .claude/
 .harness-lock/
 goose_tasks.jsonl
+data/contacts.local.json

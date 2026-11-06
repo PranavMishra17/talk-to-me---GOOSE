@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Goose Quickstart</title>
+<style>
+  :root{color-scheme:light}
+  body{font:16px/1.55 system-ui,sans-serif;max-width:760px;margin:0 auto;padding:24px 16px;background:#fff;color:#1b1b1b}
+  h1{margin-bottom:4px}
+  h2{margin-top:28px;font-size:18px}
+  pre{background:#f1f1f1;border-radius:6px;padding:12px;overflow:auto;white-space:pre-wrap}
+  code{background:#f1f1f1;border-radius:4px;padding:1px 5px}
+  pre code{padding:0}
+</style>
+</head>
+<body>
+<h1>Goose quickstart</h1>
+<p>Goose is a voice personal assistant. It answers Pranav's phone number, knows who is calling, keeps private things private, and briefs him afterwards from a web app. This page gets you running so you can look around. No task yet: Pranav will share the split.</p>
+
+<h2>1. Clone and install (2 min)</h2>
+<p>You need Git and <a href="https://docs.astral.sh/uv/getting-started/installation/">uv</a>.</p>
+<pre><code>git clone https://github.com/PranavMishra17/talk-to-me---GOOSE.git
+cd talk-to-me---GOOSE
+uv sync
+uv run pytest -q</code></pre>
+<p>The tests need no keys and spend nothing.</p>
+
+<h2>2. See the web app, no keys needed</h2>
+<p>Mac or Linux:</p>
+<pre><code>GOOSE_MOCK=1 uv run uvicorn app.api:app --port 8000</code></pre>
+<p>Windows PowerShell:</p>
+<pre><code>$env:GOOSE_MOCK=1; uv run uvicorn app.api:app --port 8000</code></pre>
+<p>Open <a href="http://localhost:8000">http://localhost:8000</a>.</p>
+
+<h2>3. Optional: talk to Goose yourself</h2>
+<p>Make a free account at <a href="https://cloud.livekit.io">cloud.livekit.io</a> and create a project. Your own account has its own credits. Create a file named <code>.env</code> in the repo root with your own keys. It is gitignored: never commit it or paste keys into chat.</p>
+<pre><code>LIVEKIT_URL=wss://YOUR-PROJECT.livekit.cloud
+LIVEKIT_API_KEY=
+LIVEKIT_API_SECRET=
+OPENROUTER_API_KEY=</code></pre>
+<p>Then run the following and speak. Press Ctrl+C when done, because a running session spends credits.</p>
+<pre><code>uv run python -m app.worker console</code></pre>
+<p>Do not run <code>app.worker dev</code> on Pranav's LiveKit project: calls go to whichever worker LiveKit picks.</p>
+
+<h2>4. Starter prompt for your coding agent</h2>
+<p>Open Claude Code in the repo and paste this:</p>
+<pre><code>This is Goose, a voice personal assistant on LiveKit Agents in Python, built with uv. Read README.md, then give me a 10-line tour: how a phone call flows through app/worker.py and app/agent.py, what lives in proxy_core/, what the web app in app/api.py and web/ does, and how tests and scripts/harness.py prove behaviour. Then list the three things most worth trying by hand. Do not change, commit or push anything yet. Never read or print .env. Other work is landing on main often, so run git pull before you look.</code></pre>
+
+<h2>Working rules</h2>
+<ul>
+  <li>Pull often: <code>git pull</code>. Several people and agents are pushing to <code>main</code>.</li>
+  <li>The repo is public: no keys and no real phone numbers.</li>
+  <li>The phone call is what gets judged, so anything that makes it less reliable does not ship.</li>
+</ul>
+</body>
+</html>
