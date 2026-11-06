@@ -17,7 +17,7 @@ from livekit.agents import Agent, FlushSentinel, RunContext, StopResponse, funct
 
 from app.tools import DataTools
 from proxy_core import calls, floor, policy, shape, slots, vault
-from proxy_core.agenda import CONFIRM_TOOLS, Agenda, claims_action, is_bye, is_yes, summoned_planner
+from proxy_core.agenda import CONFIRM_TOOLS, check_claim, is_offer, Agenda, claims_action, is_bye, is_yes, summoned_planner
 from proxy_core.config import agent_name, load_config
 from proxy_core.decider import decide
 from proxy_core.echo import EchoGuard
@@ -40,6 +40,12 @@ def _as_data(chat_ctx):
             quoted = text.replace('"', "'")
             ctx.items[n] = item.model_copy(update={"content": [f'Caller said: "{quoted}"']})
     return ctx
+
+
+def _key(tool, args):
+    """What makes two calls the same action. A summon is one person, whatever the question."""
+    what = args.get("person") or args.get("fact") or args.get("when") or args.get("message") or ""
+    return tool, " ".join(str(what).lower().split())
 
 
 def _now():
@@ -78,6 +84,7 @@ class GooseAgent(DataTools, Agent):
         self._block, self._reading = None, False
         self.log: list[str] = []          # task log; the web panel reads it through goose.state
         self.summary, self._published = "", None
+        self._fired, self._fix, self._yes_first = set(), None, False   # actions that ran; code's repair of a false claim; a yes that came first
         self.ladder, self._quiet = SilenceLadder(persona, self.cfg["session"]["silence_nudges_s"]), None
         super().__init__(instructions=self._prompt())
 
@@ -275,7 +282,9 @@ class GooseAgent(DataTools, Agent):
             tools = []                             # the model must not re-request what just happened
         # The model's words wait for the end of the stream: models announce an action before calling its tool, and
         # a gated tool makes those words false. Preemptive generation runs ahead of the turn, so this wait is mostly hidden.
-        words, called = [], set()
+        words, called, self._fix = [], set(), None
+        said = next((i.text_content or "" for i in reversed(chat_ctx.items) if getattr(i, "role", "") == "assistant"), "")
+        self._yes_first = is_yes(text) and is_offer(said)
         async for chunk in Agent.default.llm_node(self, _as_data(chat_ctx), tools, model_settings):
             delta = getattr(chunk, "delta", None)
             if delta and delta.content:      # models parrot the [Maya said]: context lines, and TTS would read them out
@@ -286,6 +295,8 @@ class GooseAgent(DataTools, Agent):
                 continue
             called |= names
             gated = sorted((names & CONFIRM_TOOLS) - {"end_call"}) or sorted(names & CONFIRM_TOOLS)
+            if gated != ["end_call"] and (self._yes_first or names and self._already_ran(delta)):
+                gated = []                 # the caller already said yes to this: no second ask
             if gated:
                 delta.content = None
                 if gated == ["end_call"] or claims_action("".join(w.delta.content for w in words)):
@@ -310,8 +321,42 @@ class GooseAgent(DataTools, Agent):
                 yield FlushSentinel()
             yield chunk
         if words:
-            yield shape.clip("".join(w.delta.content for w in words))
+            yield await self._honest(shape.clip("".join(w.delta.content for w in words)), text, called, chat_ctx)
         self._bye_open = is_bye(text) and not called and not self._owes_read_back()   # the model said goodbye without hanging up: tts_node closes
+
+    async def _honest(self, reply, text, called, chat_ctx):
+        """A reply cannot claim an action that did not fire. Words are held to the end of the stream, so this costs no audio."""
+        if called or (self._done and text.startswith(self._done[0])):
+            return reply
+        move = check_claim(reply, text, bool(self.agenda.pending), any(k[0] == "take_message" for k in self._fired))
+        if move == "keep":
+            return reply
+        if move == "confirm":
+            return confirm_line(self.pack, next(iter(self.agenda.pending)), self.owner.title())
+        asked = next((t for i in reversed(chat_ctx.items) if getattr(i, "role", "") == "user"
+                      and not is_yes(t := i.text_content or "")), text)
+        logger.info("false claim, %s: %s", move, reply)
+        self._fix = (move, {"from_name": self.agenda.slots.get("name") or "Unknown caller", "message": asked})
+        if self.session.input.audio is None:   # no tts_node in a text session
+            await self._apply_fix()
+        return reply if move == "fire" else confirm_line(self.pack, "take_message", self.owner.title())
+
+    async def _apply_fix(self):
+        """After the turn commits, as with a yes: a preemptive run must not act."""
+        fix, self._fix = self._fix, None
+        if fix and not self._closing:
+            if fix[0] == "fire":
+                self._done = (self._caller_text, await self._do("take_message", fix[1]))
+            else:
+                await self._gate("take_message", **fix[1])
+
+    def _already_ran(self, delta):
+        def ran(c):
+            try:
+                return _key(c.name, json.loads(c.arguments or "{}")) in self._fired
+            except ValueError:
+                return False
+        return any(ran(c) for c in delta.tool_calls)
 
     async def _answer(self, text, message_id):
         """The caller's answer to a read-back or pending actions. True = code answered this turn.
@@ -351,21 +396,27 @@ class GooseAgent(DataTools, Agent):
         self._act(f"end: {summary}")
         asyncio.ensure_future(self._finish(self.session.say(farewell(self.pack, self._fillers))))
 
-    def _gate(self, tool, **args):
+    async def _gate(self, tool, **args):
         """A gated tool only records the request: the confirmation is already spoken, and llm_node stays silent on
-        the tool reply. The action fires when the caller says yes."""
+        the tool reply. The action fires when the caller says yes, or now if that yes came first."""
+        if tool != "end_call" and _key(tool, args) in self._fired:
+            return "Already done on this call. Do not ask about it again."
+        if tool != "end_call" and self._yes_first:
+            self._done = (self._caller_text, await self._do(tool, args))
+            return self._done[1]
         self.agenda.ask(tool, args)
         self._asked_on = self._turn_id
         self.publish()
         return "Queued. It runs by itself when the caller says yes; no second call is needed."
 
     async def _do(self, tool, args):
+        self._fired.add(_key(tool, args))
         if tool == "take_message":
             self._act(f"message from {args['from_name']}: {args['message']}")
             s, f = self.agenda.slots, self.agenda.focus()
-            extra = f and f.id.startswith("ask_") and s.get("details")     # a second message adds to the first
+            ask = {f.id: True} if f and f.id.startswith("ask_") else {}
             self._note({"name": s.get("name") or args["from_name"], "topic": s.get("topic") or args["message"],
-                        "details": f"{extra.rstrip(' .')}. {args['message']}" if extra else args["message"], **({f.id: True} if extra else {})})
+                        "details": slots.merged(s["details"], args["message"]) if s.get("details") else args["message"], **ask})
             return "message saved"
         if tool == "propose_slot":
             self._act(f"slot {args['when']}")
@@ -382,6 +433,7 @@ class GooseAgent(DataTools, Agent):
             async for t in text:
                 self.echo.said(t)
                 yield t
+            await self._apply_fix()
             if self._bye_open:             # here, not llm_node: this runs after the turn commits, so a pause cannot hang up
                 self._close("caller said goodbye")
         if not (self.floor and self.floor.crowded()):   # alone: not one await added to the single-agent path
@@ -418,7 +470,7 @@ class GooseAgent(DataTools, Agent):
             person: The person whose assistant to bring in, such as rohan.
             request: One short question for that assistant, in the caller's terms.
         """
-        return self._gate("summon_agent", person=person, request=request)
+        return await self._gate("summon_agent", person=person, request=request)
 
     async def _summon(self, person, request=""):
         person = person.strip().lower()
@@ -480,17 +532,17 @@ class GooseAgent(DataTools, Agent):
     @function_tool
     async def take_message(self, from_name: str, message: str) -> str:
         """Record a message for the owner. Asks the caller to confirm first."""
-        return self._gate("take_message", from_name=from_name, message=message)
+        return await self._gate("take_message", from_name=from_name, message=message)
 
     @function_tool
     async def propose_slot(self, when: str) -> str:
         """Propose a time. Asks the caller to confirm first."""
-        return self._gate("propose_slot", when=when)
+        return await self._gate("propose_slot", when=when)
 
     @function_tool
     async def request_permission_from_owner(self, fact: str) -> str:
         """Ask the owner whether a withheld fact may be shared. Asks the caller to confirm first; the call never blocks on it."""
-        return self._gate("request_permission_from_owner", fact=fact)
+        return await self._gate("request_permission_from_owner", fact=fact)
 
     @function_tool
     async def end_call(self, ctx: RunContext, summary: str) -> None:
@@ -498,7 +550,7 @@ class GooseAgent(DataTools, Agent):
         if self._owes_read_back():
             return self._read_back()         # the caller's yes ends the call, in _read_back_turn
         if not is_bye(self._caller_text):
-            return self._gate("end_call", summary=summary)
+            return await self._gate("end_call", summary=summary)
         self._closing = True
         self._act(f"end: {summary}")
         await ctx.wait_for_playout()         # the farewell from llm_node finishes first
@@ -553,7 +605,7 @@ class GooseAgent(DataTools, Agent):
 
     def _read_back(self):
         """Beat 6. Code speaks it: a model can skip it or repeat a value the caller just corrected."""
-        self._reading, self._bye_open = True, False
+        self._reading, self._bye_open, self._fix = True, False, None
         self.session.say(slots.read_back(self.agenda.slots, self.owner.title()))
         self.publish()
 

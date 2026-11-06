@@ -39,6 +39,12 @@ def corrected(slots: dict, found: dict) -> dict:
     return out
 
 
+def merged(old: str, new: str) -> str:
+    """A second message adds to the first. One sharing most of its words restates or corrects it, so it replaces it."""
+    a, b = (set(re.findall(r"[a-z0-9']+", t.lower())) for t in (old, new))
+    return new if len(a & b) >= min(len(a), len(b)) / 2 else f"{old.rstrip(' .')}. {new}"
+
+
 def _message(s: dict) -> str:
     what = (s.get("details") or s.get("topic") or "").rstrip(" .")
     plan = [v for v, shown in ((s.get("day"), s.get("day")), (s.get("time") and f"at {s['time']}", s.get("time")))
@@ -72,3 +78,6 @@ if __name__ == "__main__":
     assert "dinner Sunday at 7. That goes to Pranav" in read_back({**s, **c}, "Pranav")
     assert "dinner Saturday at 7" in read_back({"topic": "dinner", "day": "Saturday", "time": "7"}, "Pranav")
     assert "Unknown caller" in summary({}, "Pranav", "caller went quiet")
+    assert merged("Dinner Saturday at seven works.", "Dinner Sunday at seven works.") == "Dinner Sunday at seven works."
+    assert merged("Dinner Saturday at seven works.", "Bringing wine for dinner Saturday.") == \
+        "Dinner Saturday at seven works. Bringing wine for dinner Saturday."
