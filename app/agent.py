@@ -23,6 +23,7 @@ from proxy_core.decider import decide
 from proxy_core.echo import EchoGuard
 from proxy_core.personality import confirm_line, farewell, greeting, load_pack, nudge_text, render_style, tool_filler
 from proxy_core.silence import ACTIONS, SilenceLadder
+from proxy_core.speech import SpeechBuffer, spoken_time
 
 logger = logging.getLogger("goose")
 PROMPT = (Path(__file__).parent / "prompts" / "system.txt").read_text(encoding="utf-8")
@@ -113,7 +114,9 @@ class GooseAgent(DataTools, Agent):
                    "knows. Lines like [Maya said]: ... are another assistant speaking on this call; never write that label yourself.")
         if self.request:
             network += f" If get_facts does not return something, say you can't share that with this caller and offer to ask {self.owner.title()}."
-        return PROMPT.format(assistant=self.persona.title(), owner=self.owner.title(), caller_tier=self.caller_tier,
+        now = datetime.now().astimezone()
+        today = f"{now:%A}, {now:%B} {now.day}, {now.year}, {spoken_time(now.hour, now.minute)}"
+        return PROMPT.format(now=today, assistant=self.persona.title(), owner=self.owner.title(), caller_tier=self.caller_tier,
                              style="\n".join([render_style(self.pack), *self.pack.get("rules", [])]), agenda=self.agenda.render_prompt_block()) + \
             ("\n\n# OTHER ASSISTANTS\n" + ", ".join(peers) + "." + network if peers else "") + self._known
 
@@ -435,9 +438,20 @@ class GooseAgent(DataTools, Agent):
     # HOOK 3 (before speak): records what we say for the echo guard, and holds the floor while another agent is here.
     def tts_node(self, text, model_settings):
         async def tap():
+            buf = SpeechBuffer()             # "12/21" -> "next Monday", phone numbers in blocks; prompts alone miss
             async for t in text:
-                self.echo.said(t)
-                yield t
+                if not isinstance(t, str):   # a FlushSentinel: what is held must go out before it
+                    if out := buf.flush():
+                        self.echo.said(out)
+                        yield out
+                    yield t
+                    continue
+                if out := buf.push(t):
+                    self.echo.said(out)
+                    yield out
+            if out := buf.flush():
+                self.echo.said(out)
+                yield out
             await self._apply_fix()
             if self._bye_open:             # here, not llm_node: this runs after the turn commits, so a pause cannot hang up
                 self._close("caller said goodbye")
