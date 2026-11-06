@@ -1,7 +1,7 @@
 # Tier order: public < friends < family < private. A contact's tier is what THEY may see of the owner.
 # Unknown callers are public. Raw data here never enters a prompt; only policy.get_facts() output does.
 pranav:
-  assistant: ash
+  assistant: goose
   facts:
     - {key: availability, value: "Free Saturday evening after 6pm", tier: public}
     - {key: city, value: "Boston", tier: public}

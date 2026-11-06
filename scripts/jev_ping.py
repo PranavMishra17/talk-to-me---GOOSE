@@ -7,8 +7,8 @@ from proxy_core.config import load_config, load_env
 from proxy_core.decider import _jev
 load_env()
 cfg = load_config()
-state = {"turns": [{"speaker": "caller", "text": "Maya, is Rohan free Saturday?"}, {"speaker": "ash", "text": "Let me ask her."}],
-         "participants": ["caller", "ash", "maya"], "agenda_ids": ["identify", "learn_ask", "read_back"]}
+state = {"turns": [{"speaker": "caller", "text": "Maya, is Rohan free Saturday?"}, {"speaker": "goose", "text": "Let me ask her."}],
+         "participants": ["caller", "goose", "maya"], "agenda_ids": ["identify", "learn_ask", "read_back"]}
 ms = []
 for i in range(3):
     t = time.time()

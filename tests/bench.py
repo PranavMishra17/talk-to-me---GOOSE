@@ -34,7 +34,7 @@ async def run_turns(caller, turns):
     CALLS.clear()
     async with AgentSession(llm=llm) as session:
         with mock_tools(GooseAgent, MOCKS):
-            agent = GooseAgent("ash", caller=caller, cfg=cfg)
+            agent = GooseAgent("goose", caller=caller, cfg=cfg)
             await session.start(agent)
             for t in turns:
                 t0 = time.time()

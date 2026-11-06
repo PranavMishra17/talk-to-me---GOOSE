@@ -24,7 +24,7 @@ async def main(rounds):
     try:
         for i, r in enumerate(rooms):
             await r.connect(url, api.AccessToken(key, secret).with_identity(f"w{i}").with_grants(api.VideoGrants(room_join=True, room=name)).to_jwt())
-        a, b = RoomFloor(rooms[0], lk, "ash", cfg), RoomFloor(rooms[1], lk, "maya", cfg)
+        a, b = RoomFloor(rooms[0], lk, "goose", cfg), RoomFloor(rooms[1], lk, "maya", cfg)
         winners, rtt, seen = [], [], []
         for n in range(rounds):
             t = time.time()

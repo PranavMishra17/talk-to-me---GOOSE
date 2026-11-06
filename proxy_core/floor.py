@@ -10,13 +10,13 @@ import json
 from dataclasses import asdict, dataclass, field, replace
 from typing import Callable
 
-AGENTS = ("ash", "maya")
+AGENTS = ("goose", "maya")
 LEASE_S = 20.0  # mirrors config limits.floor_lease_s
 
 
 @dataclass(frozen=True)
 class FloorState:
-    holder: str | None = None  # "ash" | "maya" | "human:<id>" | None
+    holder: str | None = None  # "goose" | "maya" | "human:<id>" | None
     since: float = 0.0
     addressed_to: str | None = None
     queue: list[str] = field(default_factory=list)
@@ -106,7 +106,7 @@ def choose_speaker(addressee: str | None, floor: FloorState, lead: str,
                    mid_tool_call: str | None = None, nobody_means_silence: bool = False) -> str | None:
     """Pick the one agent that replies; the other raises StopResponse.
 
-    `addressee` is the decider's Choice: ash | maya | other_human | none (or None).
+    `addressee` is the decider's Choice: goose | maya | other_human | none (or None).
     `lead` is the agent whose owner was called. Returns None = nobody speaks.
     nobody_means_silence: the addressee is a confident "not an agent" and the room has more than one
     agent or human. Off for keyword answers and for one agent alone with one human.

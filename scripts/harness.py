@@ -1,7 +1,7 @@
 """Machine ear: does the console hello test (A4) with nobody at a microphone. Spends credits (a few cents a run).
   uv run python scripts/harness.py
   uv run python scripts/harness.py --say "Hi, it's Sam." --say "Tell him dinner Saturday works." --caller +15550100222
-  uv run python scripts/harness.py --maya --caller +15550100222    # both workers: Ash summons Maya, reports who spoke when
+  uv run python scripts/harness.py --maya --caller +15550100222    # both workers: Goose summons Maya, reports who spoke when
 Starts the real worker, dispatches it into a real room, joins as a caller, speaks synthesised lines, and measures
 end of caller speech -> first agent audio. The room and worker are always torn down. Exit 0 = every line answered in budget.
 Result goes to stdout, .harness/, and the dashboard log.
@@ -227,7 +227,7 @@ MAYA_LINES = ["Hi, it's Sam.", "Is Rohan free on Saturday? Can you ask his assis
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--say", action="append")
-    ap.add_argument("--persona", default="ash")
+    ap.add_argument("--persona", default="goose")
     ap.add_argument("--caller", default="")
     ap.add_argument("--prefix", default="harness-", help="room name prefix; call- makes the web panel follow the room")
     ap.add_argument("--hold", type=float, default=0, help="stay silent this many seconds after the last line")

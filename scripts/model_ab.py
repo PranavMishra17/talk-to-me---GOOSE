@@ -35,14 +35,14 @@ class Side:
         from app.agent import GooseAgent
         from proxy_core.config import load_config
         self.model, self.lm = model, inference.LLM(model=model)
-        self.agent = GooseAgent("ash", caller="+15550100222", cfg=load_config())
+        self.agent = GooseAgent("goose", caller="+15550100222", cfg=load_config())
         self.end, self.first, self.bad, self.dropped = [], [], 0, 0
 
     async def one(self, text, note=None):
         from livekit.agents import llm
         agent, ctx = self.agent, llm.ChatContext()
         ctx.add_message(role="system", content=agent.instructions)
-        ctx.add_message(role="assistant", content="Hi, I'm Ash, Pranav's assistant. Who's calling?")
+        ctx.add_message(role="assistant", content="Hi, I'm Goose, Pranav's assistant. Who's calling?")
         if text != TURNS[0][0]:   # a real call already knows who this is
             ctx.add_message(role="user", content=TURNS[0][0])
             ctx.add_message(role="assistant", content="Hi Sam, what can I do for you?")

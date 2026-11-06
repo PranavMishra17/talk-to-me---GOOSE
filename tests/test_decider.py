@@ -9,7 +9,7 @@ from proxy_core.decider import decide
 CFG = {"decider": {"backend": "mock"}}
 
 
-def st(text, participants=("ash", "pranav", "sam")):
+def st(text, participants=("goose", "pranav", "sam")):
     return {"turns": [{"speaker": "sam", "text": text}], "participants": list(participants), "agenda_ids": []}
 
 
@@ -25,7 +25,7 @@ def test_hostility_and_calm():
 
 
 def test_addressee_and_done():
-    assert decide(st("Ash, can you check?"), "keyword", CFG).addressee == "ash"
+    assert decide(st("Goose, can you check?"), "keyword", CFG).addressee == "goose"
     assert decide(st("Pranav what do you think"), "keyword", CFG).addressee == "other_human"
     assert decide(st("ok"), "keyword", CFG).addressee == "none"
     assert decide(st("that's all, goodbye"), "keyword", CFG).done
@@ -49,4 +49,4 @@ def test_missing_key_falls_back_to_keyword(monkeypatch):
 
 def test_backend_error_falls_back(monkeypatch):
     monkeypatch.setattr(dec, "_jev", lambda *a: 1 / 0)
-    assert decide(st("shut up ash"), "jev", CFG).tone["hostile"] == 1.0
+    assert decide(st("shut up goose"), "jev", CFG).tone["hostile"] == 1.0

@@ -1,8 +1,8 @@
 """LiveKit-touching: REWRITE against the starter kit tomorrow (copy the two entrypoints' bodies).
 
-Named agents ash/maya, explicit dispatch only. Commands:
-  uv run python -m app.worker console          # talk to Ash in the terminal (spends credits; Ctrl+C when done)
-  uv run python -m app.worker dev              # register Ash with LiveKit Cloud (phone + dispatch)
+Named agents goose/maya, explicit dispatch only. Commands:
+  uv run python -m app.worker console          # talk to Goose in the terminal (spends credits; Ctrl+C when done)
+  uv run python -m app.worker dev              # register Goose with LiveKit Cloud (phone + dispatch)
   GOOSE_PERSONA=maya uv run python -m app.worker dev   # second terminal: Maya (PowerShell: $env:GOOSE_PERSONA='maya'; uv run ...)
 """
 import asyncio
@@ -120,7 +120,7 @@ async def _run(ctx: JobContext, persona: str):
             asyncio.ensure_future(agent.set_caller(number))
     ctx.room.on("participant_connected", caller_id)
 
-    # A summoned agent names the caller: with AGENT in participant_kinds, RoomIO would otherwise link it to Ash.
+    # A summoned agent names the caller: with AGENT in participant_kinds, RoomIO would otherwise link it to Goose.
     link = {"participant_identity": meta["link"]} if meta.get("link") else {}
     if link:
         await ctx.connect()     # RoomIO touches local_participant at once when given an identity
@@ -133,9 +133,9 @@ async def _run(ctx: JobContext, persona: str):
     agent.publish()
 
 
-# livekit-agents 1.8.11: ONE rtc_session per AgentServer, so ash and maya are two worker processes.
-# The persona comes from GOOSE_PERSONA (default ash); the dispatch agent_name equals the persona.
-PERSONA = os.environ.get("GOOSE_PERSONA", "ash")
+# livekit-agents 1.8.11: ONE rtc_session per AgentServer, so goose and maya are two worker processes.
+# The persona comes from GOOSE_PERSONA (default goose); the dispatch agent_name equals the persona.
+PERSONA = os.environ.get("GOOSE_PERSONA", "goose")
 
 
 @server.rtc_session(agent_name=agent_name(PERSONA))

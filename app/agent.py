@@ -34,7 +34,7 @@ def _now():
 
 
 class GooseAgent(DataTools, Agent):
-    def __init__(self, persona="ash", caller="", task="Take a message and coordinate.", cfg=None, lead=None,
+    def __init__(self, persona="goose", caller="", task="Take a message and coordinate.", cfg=None, lead=None,
                  request="", voucher=None, pack=None):
         self.cfg = cfg or load_config()
         p = self.cfg["personas"][persona]
@@ -173,7 +173,7 @@ class GooseAgent(DataTools, Agent):
         agents = sum(p.kind == rtc.ParticipantKind.PARTICIPANT_KIND_AGENT for p in others)
         humans = len(others) - agents
         if not agents and humans <= 1:
-            return True       # "is Maya there?" with no Maya in the room must not silence Ash
+            return True       # "is Maya there?" with no Maya in the room must not silence Goose
         try:
             st = floor.FloorState.from_json(self.room.metadata or None)
         except (ValueError, TypeError):   # someone else's metadata must not silence the call
