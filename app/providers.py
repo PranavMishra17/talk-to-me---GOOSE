@@ -60,5 +60,6 @@ def build_session(persona_name: str, cfg: dict | None = None, voice: str | None 
         tts=_tts(p["tts"], cfg, voice),
         vad=_vad(p["vad"], cfg),
         turn_handling=turn_handling(cfg),
+        expressive=p["tts"].get("expressive", False),
         user_away_timeout=cfg["session"]["silence_nudges_s"][0],
     )

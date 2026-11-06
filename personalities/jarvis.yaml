@@ -14,6 +14,7 @@ tool_filler:
 farewell:
   - "Good day."
   - "I shall bid you good day."
+fish_voice: 933563129e564b19a115bedd57b7406a  # Sarah, LiveKit Fish docs
 confirm:
   take_message: "Shall I relay that to {owner}?"
   propose_slot: "Shall I propose that time?"

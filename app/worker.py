@@ -34,7 +34,8 @@ def _noise(cfg):
 async def _run(ctx: JobContext, persona: str):
     cfg = load_config()
     meta = json.loads(ctx.job.metadata or "{}")            # job metadata is a string; carries task + caller
-    voice = load_pack(cfg["personas"][persona]["pack"])["voice"]
+    pack = load_pack(cfg["personas"][persona]["pack"])
+    voice = pack["fish_voice"] if cfg["providers"]["tts"]["model"].startswith("fishaudio/") else pack["voice"]
     voice = None if voice == "TODO" else voice              # TODO voice ids: set in personalities/*.yaml
     session = build_session(persona, cfg, voice)
     # S1-05: every module's timing as METRIC json; proxy_core/latency.py turns these into one row per turn.

@@ -14,6 +14,7 @@ tool_filler:
 farewell:
   - "Later!"
   - "Catch you later."
+fish_voice: bf322df2096a46f18c579d0baa36f41d  # Adrian, LiveKit Fish docs
 confirm:
   take_message: "Want me to tell {owner}?"
   propose_slot: "That time work?"

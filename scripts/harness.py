@@ -31,8 +31,8 @@ async def speech(text, voice):
     f = OUT / f"line_{hashlib.sha1(text.encode()).hexdigest()[:10]}.wav"
     if not f.exists():
         async with aiohttp.ClientSession() as http:
-            cfg = load_config()["providers"]["tts"]
-            tts = inference.TTS(model=cfg["model"], language="en", voice=voice, http_session=http, sample_rate=SR)
+            # the caller's voice stays fixed, so A/B runs of the agent's models hear the same input
+            tts = inference.TTS(model="cartesia/sonic-3.5", language="en", voice=voice, http_session=http, sample_rate=SR)
             pcm = b"".join([bytes(a.frame.data) async for a in tts.synthesize(text)])
             await tts.aclose()
         with wave.open(str(f), "wb") as w:
