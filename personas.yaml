@@ -12,6 +12,15 @@ pranav:
     sam: {tier: friends, numbers: ["+15550100222"]}
     rohan: {tier: family, numbers: ["+15550100333"]}
     lena: {tier: friends, numbers: ["+15550100444"]}
+skyler:
+  assistant: jesse
+  facts:
+    - {key: business, value: "Owns A1 Car Wash in Albuquerque", tier: public}
+    - {key: sale, value: "Open to selling to the right buyer. Listed at 879 thousand dollars", tier: public}
+    - {key: price_floor, value: "640 thousand dollars", tier: private}
+    - {key: reasons, value: "Paying down family debts, wants out before the audit", tier: private}
+  contacts:
+    marie: {tier: family, numbers: ["+15550100777"]}
 rohan:
   assistant: maya
   facts:

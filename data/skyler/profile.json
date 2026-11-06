@@ -1,0 +1,6 @@
+[
+ {"id": "p1", "key": "name", "value": "Skyler White", "tier": "public"},
+ {"id": "p2", "key": "business", "value": "Owns A1 Car Wash in Albuquerque, a family business with two tunnels and a steady local trade", "tier": "public"},
+ {"id": "p3", "key": "sale", "value": "Open to selling to the right buyer. Listed at 879 thousand dollars. Offers go to Skyler, who answers within a day", "tier": "public"},
+ {"id": "p4", "key": "timing", "value": "Would like to close within the quarter", "tier": "family"}
+]

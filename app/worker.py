@@ -146,11 +146,12 @@ async def _run(ctx: JobContext, persona: str):
 
 
 # livekit-agents 1.8.11: ONE rtc_session per AgentServer, so goose and maya are two worker processes.
-# The persona comes from GOOSE_PERSONA (default goose); the dispatch agent_name equals the persona.
+# The persona comes from GOOSE_PERSONA (default goose); the dispatch agent_name equals the persona, unless
+# GOOSE_DISPATCH_AS keeps the phone rule's one name while another persona answers (scripts/demo.py).
 PERSONA = os.environ.get("GOOSE_PERSONA", "goose")
 
 
-@server.rtc_session(agent_name=agent_name(PERSONA))
+@server.rtc_session(agent_name=agent_name(os.environ.get("GOOSE_DISPATCH_AS") or PERSONA))
 async def entry(ctx: JobContext):
     await _run(ctx, PERSONA)
 

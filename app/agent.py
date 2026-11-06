@@ -100,14 +100,19 @@ class GooseAgent(DataTools, Agent):
             self.agenda.update_slots({"name": name.split()[0]})
 
     def _prompt(self):
-        peers = [f"{p['owner'].title()}'s assistant is {n.title()}" for n, p in self.cfg["personas"].items() if n != self.persona]
+        peers = [f"{p['owner'].title()}'s assistant is {n.title()}" for n, p in self._peers().items()]
         network = (" You can bring one into the call with summon_agent when the caller needs something only that person "
                    "knows. Lines like [Maya said]: ... are another assistant speaking on this call; never write that label yourself.")
         if self.request:
             network += f" If get_facts does not return something, say you can't share that with this caller and offer to ask {self.owner.title()}."
         return PROMPT.format(assistant=self.persona.title(), owner=self.owner.title(), caller_tier=self.caller_tier,
-                             style=render_style(self.pack), agenda=self.agenda.render_prompt_block()) + \
-            "\n\n# OTHER ASSISTANTS\n" + ", ".join(peers) + "." + network + self._known
+                             style="\n".join([render_style(self.pack), *self.pack.get("rules", [])]), agenda=self.agenda.render_prompt_block()) + \
+            ("\n\n# OTHER ASSISTANTS\n" + ", ".join(peers) + "." + network if peers else "") + self._known
+
+    def _peers(self):
+        """Personas on this one's network. No network, no peers: their owners do not exist on this call."""
+        net = self.cfg["personas"][self.persona].get("network")
+        return {n: p for n, p in self.cfg["personas"].items() if net and n != self.persona and p.get("network") == net}
 
     # HOOK 1 (on_enter): load_state() then greet. TODO: restore agenda from room metadata.
     async def on_enter(self):
@@ -395,6 +400,8 @@ class GooseAgent(DataTools, Agent):
     async def get_facts(self, person: str) -> dict:
         """Facts about a person the CURRENT caller is allowed to hear. Tier is enforced in code."""
         person = person.strip().lower()   # the tier comes from the contact list of whoever owns the facts
+        if person != self.owner and person not in (p["owner"] for p in self._peers().values()):
+            return {}
         tier = self.caller_tier if person == self.owner else policy.resolve_tier(person, self.caller)
         facts = policy.get_facts(person, tier)
         if self.request and person == self.owner:
@@ -416,7 +423,7 @@ class GooseAgent(DataTools, Agent):
         self._act(f"summon {person}")
         if not self.room:
             return f"{person}'s assistant is joining"
-        target = next((n for n, p in self.cfg["personas"].items() if p["owner"] == person and n != self.persona), None)
+        target = next((n for n, p in self._peers().items() if p["owner"] == person), None)
         if target is None or self.request:    # a summoned agent answers; it does not widen the call
             return f"There is no assistant to bring in for {person}."
         if target in self.summoned:
