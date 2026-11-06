@@ -15,6 +15,7 @@ from datetime import datetime
 from livekit import rtc
 from livekit.agents import AgentServer, JobContext, cli, room_io
 
+from app import native
 from app.agent import GooseAgent
 from app.owner import OwnerAgent
 from app.providers import build_session
@@ -24,6 +25,7 @@ from proxy_core.config import agent_name, load_config, load_env
 from proxy_core.personality import list_packs, load_pack
 
 load_env()
+native.harden()    # at import: this runs in every job process, before any stream or job thread
 logger = logging.getLogger("goose")
 server = AgentServer()
 
@@ -45,6 +47,11 @@ async def _first_human(ctx, wait_s):
         return None
 
 
+def _number(p, owner):
+    """Caller ID: from the phone network, or from the name this server minted into a web Join as token."""
+    return p.attributes.get("sip.phoneNumber") or vault.number_for(p.attributes.get("goose.caller"), owner)
+
+
 def _save(ctx, session, agent):
     """Written when the session closes, a caller just hanging up included. Job shutdown comes seconds later: it is the
     fallback for a session that never started."""
@@ -56,7 +63,7 @@ def _save(ctx, session, agent):
     saved = []
     def write(*_):
         if not saved:
-            saved.append(calls.write_call(agent.call_record(ctx.job.id, turns())))
+            saved.append(calls.write_call(agent.call_record(f"console-{os.urandom(3).hex()}" if ctx.is_fake_job() else ctx.job.id, turns())))
             logger.info("CALL RECORD %s", saved[0])
     async def at_shutdown():
         write()
@@ -95,12 +102,12 @@ async def _run(ctx: JobContext, persona: str):
     session.on("function_tools_executed", lambda ev: metric({"type": "tools_done", "ts": time.time()}))
     session.on("conversation_item_added", lambda ev: getattr(ev.item, "role", "") == "assistant" and metric(
         {"type": "assistant_turn", **(getattr(ev.item, "metrics", None) or {})}))
-    human = await _first_human(ctx, 10)
-    number = human.attributes.get("sip.phoneNumber") if human else None
+    human = await _first_human(ctx, 300 if "allowed" in meta else 10)   # a room opened from the page waits for someone to join
+    number = _number(human, owner) if human else None
     contact = vault.find_contact(number, owner)
-    if contact and contact["relationship"] == "owner" and human.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP and not meta.get("request"):
+    if contact and contact["relationship"] == "owner" and not meta.get("request"):
         return await _run_owner(ctx, session, OwnerAgent(persona, owner, pack_name, number, vault.phone_tier(contact["tier"])),
-                                rtc.ParticipantKind.PARTICIPANT_KIND_SIP, _noise(cfg))
+                                human.kind, _noise(cfg))
     agent = GooseAgent(persona, caller=number or meta.get("caller", ""), task=meta.get("task", "Take a message and coordinate."),
                        cfg=cfg, lead=meta.get("lead"), request=meta.get("request", ""),
                        voucher=(meta["requester_tier"], meta["requester_owner"]) if meta.get("request") else None, pack=pack_name)
@@ -113,13 +120,14 @@ async def _run(ctx: JobContext, persona: str):
     session.on("user_input_transcribed", lambda ev: ev.is_final and agent.on_stt_final(ev.transcript))
     session.on("agent_state_changed", lambda ev: ev.old_state == "speaking" and agent.spoke_end(time.time()))
     session.on("user_state_changed", lambda ev: ev.old_state == "speaking" and setattr(agent, "human_stopped", time.time()))
-    session.on("user_state_changed", lambda ev: agent.on_user_state(ev.new_state))
+    if not ctx.is_fake_job():                              # someone typing in a console is not a silent caller
+        session.on("user_state_changed", lambda ev: agent.on_user_state(ev.new_state))
     session.on("close", lambda ev: agent.record())
     session.on("conversation_item_added", lambda ev: agent.publish())
     session.on("function_tools_executed", lambda ev: agent.publish())
 
     def caller_id(p):   # S8-06: the tier comes from the number the phone network gave us
-        number = p.attributes.get("sip.phoneNumber")
+        number = _number(p, owner)
         if number:
             asyncio.ensure_future(agent.set_caller(number))
     ctx.room.on("participant_connected", caller_id)
@@ -132,17 +140,18 @@ async def _run(ctx: JobContext, persona: str):
         participant_kinds=[rtc.ParticipantKind.PARTICIPANT_KIND_SIP, rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD,
                            rtc.ParticipantKind.PARTICIPANT_KIND_AGENT],   # AGENT so the other agent's speech is visible
         audio_input=room_io.AudioInputOptions(noise_cancellation=_noise(cfg))))
-    for p in ctx.room.remote_participants.values():
+    for p in () if ctx.is_fake_job() else ctx.room.remote_participants.values():   # the console's room is a mock
         caller_id(p)
     agent.publish()
 
 
 # livekit-agents 1.8.11: ONE rtc_session per AgentServer, so goose and maya are two worker processes.
-# The persona comes from GOOSE_PERSONA (default goose); the dispatch agent_name equals the persona.
+# The persona comes from GOOSE_PERSONA (default goose); the dispatch agent_name equals the persona, unless
+# GOOSE_DISPATCH_AS keeps the phone rule's one name while another persona answers (scripts/demo.py).
 PERSONA = os.environ.get("GOOSE_PERSONA", "goose")
 
 
-@server.rtc_session(agent_name=agent_name(PERSONA))
+@server.rtc_session(agent_name=agent_name(os.environ.get("GOOSE_DISPATCH_AS") or PERSONA))
 async def entry(ctx: JobContext):
     await _run(ctx, PERSONA)
 

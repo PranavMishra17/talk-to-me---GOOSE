@@ -1,16 +1,21 @@
 """Voice shape: what a spoken reply must not look like. Pure, no livekit. Read by the bench."""
 import re
 
+END = re.compile(r"(?<![MD]r\.)(?<!Mrs\.)(?<!Ms\.)(?<=[.!?])\s+")
 LIST = re.compile(r"(^|\n)\s*(\d+[.)]|[-*\u2022])\s", re.M)
 
 
+def _split(text: str) -> list[str]:
+    return [s for s in END.split(text.strip()) if s]
+
+
 def sentences(text: str) -> int:
-    return len([s for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s])
+    return len(_split(text))
 
 
 def clip(text: str) -> str:
     """At most two spoken sentences, keeping a closing question: models overrun the prompt's limit."""
-    parts = [s for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s]
+    parts = _split(text)
     if len(parts) <= 2:
         return text
     return " ".join([parts[0], parts[-1] if parts[-1].endswith("?") else parts[1]])

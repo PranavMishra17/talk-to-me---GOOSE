@@ -6,9 +6,9 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 # Allowed `kind` per provider; `mock` is valid everywhere so tests need zero network.
 KINDS = {
-    "stt": {"livekit_inference", "deepgram_flux", "mock"},
-    "llm": {"livekit_inference", "realtime", "mock"},   # realtime skips STT/TTS (branch kept, unused)
-    "tts": {"livekit_inference", "mock"},
+    "stt": {"livekit_inference", "deepgram_flux", "cartesia", "mock"},
+    "llm": {"livekit_inference", "openrouter", "realtime", "mock"},   # realtime skips STT/TTS (branch kept, unused)
+    "tts": {"livekit_inference", "cartesia", "mock"},
     "vad": {"livekit_inference", "mock"},
     "noise_cancellation": {"none", "bvc_telephony", "mock"},
 }

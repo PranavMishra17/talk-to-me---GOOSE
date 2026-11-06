@@ -22,7 +22,7 @@ def test_render_style(name):
         assert k not in out
         for item in v if isinstance(v, list) else [v]:
             assert str(item) not in out
-    assert "I don't have that, I'll ask him" in out and "complete answer" in out
+    assert "I don't have that, I'll ask" in out and "complete answer" in out
     assert "apologetic" in out and "privacy filter is unaffected" in out
 
 

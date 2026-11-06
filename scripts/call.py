@@ -8,13 +8,16 @@ Ctrl+C ends it. Needs LiveKit keys in .env: the models run on LiveKit Inference.
 import argparse
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from livekit.agents import cli
+from livekit.agents.cli import _legacy
+
+from app.worker import server
 from proxy_core import calls, vault
 from proxy_core.personality import list_packs
 
@@ -56,19 +59,28 @@ def main():
         if pack not in list_packs():
             sys.exit(f"No pack called {pack}. Have: {', '.join(list_packs())}")
         meta["pack"] = pack
-    # Console worker: it runs the entrypoint with GOOSE_CALL as its dispatch metadata. Real jobs ignore this variable.
-    cmd = [sys.executable, "-m", "app.worker", "console", "--log-level", "warn", *([] if a.voice else ["--text"])]
+    os.environ["GOOSE_CALL"] = json.dumps(meta)   # console mode has no dispatch; real jobs ignore this variable
+    sys.argv = ["app.worker", "console", "--log-level", "error", *([] if a.voice else ["--text"])]
     before = {c["id"] for c in calls.list_calls()}
-    proc = subprocess.Popen(cmd, cwd=ROOT, env={**os.environ, "GOOSE_CALL": json.dumps(meta), "PYTHONUTF8": "1"})
-    while proc.poll() is None:          # Ctrl+C reaches the worker too: wait while it writes the call record
-        try:
-            proc.wait()
-        except KeyboardInterrupt:
-            pass
+    try:
+        cli.run_app(server)
+    except SystemExit:
+        pass
     for c in calls.list_calls():
         if c["id"] not in before:
             print(f"\nCall saved: {c['id']}. {c['summary']}")
 
 
+def _hang_up_on_ctrl_c(mode):
+    """The SDK's console loop restarts a mode after Ctrl+C, so the call never ends. Leaving it runs the shutdown."""
+    def run(*args, **kw):
+        mode(*args, **kw)
+        raise _legacy._ExitCli()
+    return run
+
+
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    _legacy._text_mode = _hang_up_on_ctrl_c(_legacy._text_mode)
+    _legacy._audio_mode = _hang_up_on_ctrl_c(_legacy._audio_mode)
     main()

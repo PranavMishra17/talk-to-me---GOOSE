@@ -5,5 +5,6 @@
  {"id": "t4", "text": "Sign off the Northwind contract", "due": "2026-11-09", "people": ["Priya Nair"], "done": false, "tier": "private", "topics": ["work"]},
  {"id": "t5", "text": "Send the slides to Boston Tech Meetup", "due": "2026-11-09", "people": [], "done": false, "tier": "public", "topics": ["work"]},
  {"id": "t6", "text": "Get the harness back from Muhammad", "due": "2026-11-08", "people": ["Muhammad Rahman"], "done": false, "tier": "friends"},
- {"id": "t7", "text": "Agree the Northwind liability cap with Priya", "due": "2026-11-09", "people": ["Priya Nair"], "done": false, "tier": "friends", "topics": ["work"]}
+ {"id": "t7", "text": "Agree the Northwind liability cap with Priya", "due": "2026-11-09", "people": ["Priya Nair"], "done": false, "tier": "friends", "topics": ["work"]},
+ {"id": "t9", "text": "Review and approve PR 482 for Muhammad, voice on web", "due": "2026-11-07", "done": false, "tier": "friends", "topics": ["work"]}
 ]

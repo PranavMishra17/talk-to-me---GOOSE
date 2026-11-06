@@ -10,9 +10,10 @@ class DataTools:
     """The host class sets self.owner and self.caller_tier. Another owner's assistant reads nothing."""
 
     def _rows(self, read, *args) -> str:
-        if self.owner != vault.OWNER:
+        home = vault.owner_dir(self.owner)
+        if home is None:
             return "Nothing found."
-        rows = read(*args, self.caller_tier)
+        rows = read(*args, self.caller_tier, home)
         return json.dumps(rows, ensure_ascii=False) if rows else "Nothing found."
 
     @function_tool

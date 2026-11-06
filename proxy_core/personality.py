@@ -38,7 +38,7 @@ def render_style(pack: dict, stance: str = "ext") -> str:
         f"Sentences: {s['sentence_length']}. Humour: {s['humour']}. Formality: {s['formality']}. "
         f"Use any catchphrase {s['catchphrase_budget']} at most. "
         "Never sound like an apologetic assistant: no sorry, no hedging. "
-        "\"I don't have that, I'll ask him\" is a complete answer. "
+        "\"I don't have that, I'll ask\" is a complete answer. "
         "Refusals may be in character, but the privacy filter is unaffected by style. "
         f"Examples: {ex}"
     )

@@ -2,7 +2,9 @@
 Dispatch metadata {"mode": "owner"} selects it for the web app; a SIP dispatch carries no metadata. A number marked
 relationship owner in the contact book gets it on the phone too, with the tier capped: caller ID can be spoofed.
 """
+import asyncio
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -12,6 +14,8 @@ from app.tools import DataTools
 from proxy_core import calls
 from proxy_core.personality import load_pack, render_style
 
+logger = logging.getLogger("goose")
+BRIEF_TRIES, BRIEF_WAIT_S = 3, 5
 PROMPT = (Path(__file__).parent / "prompts" / "owner.txt").read_text(encoding="utf-8")
 
 
@@ -22,7 +26,19 @@ class OwnerAgent(DataTools, Agent):
         super().__init__(instructions=PROMPT.format(assistant=persona.title(), owner=owner.title(), style=render_style(load_pack(pack_name), "own")))
 
     async def on_enter(self):
-        self.session.say(calls.brief(calls.list_calls(), self.owner.title()))
+        asyncio.ensure_future(self._brief())
+
+    async def _brief(self):
+        """Two real sessions never greeted, with no error logged and the cause unknown, so a stalled briefing is retried."""
+        line = calls.brief(calls.list_calls(), self.owner.title())
+        for attempt in range(BRIEF_TRIES):
+            speech = self.session.say(line)
+            for _ in range(int(BRIEF_WAIT_S * 10)):
+                if self.session.agent_state == "speaking" or speech.done():
+                    return
+                await asyncio.sleep(0.1)
+            logger.warning("owner briefing stalled, attempt %d", attempt + 1)
+            speech.interrupt(force=True)
 
     def call_record(self, call_id, turns):
         return {"id": call_id, "started_at": self.started_at, "ended_at": datetime.now().astimezone().isoformat(timespec="seconds"),

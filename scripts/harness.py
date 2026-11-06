@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT), str(ROOT / "scripts")]
 import aiohttp
 from livekit import api, rtc
+
+from app import native
 from livekit.agents import inference
 
 import plan
@@ -234,6 +236,7 @@ def main():
     ap.add_argument("--sip", action="store_true", help="join as a SIP participant, so hang-up and BVC run the phone path")
     ap.add_argument("--meta", default="", help="dispatch metadata, as the web app sends it: {\"mode\": \"owner\"} or {\"pack\": \"jesse\"}")
     ap.add_argument("--no-log", action="store_true", help="skip the dashboard log line")
+    ap.add_argument("--live-as", help="this persona answers under --persona's dispatch name, as scripts/demo.py runs it")
     ap.add_argument("--maya", action="store_true", help="two workers: run the summon script unless --say replaces it")
     ap.add_argument("--no-maya-worker", action="store_true", help="prove the join timeout: summon with nobody to answer")
     ap.add_argument("--wait-maya", action="append", default=[], help="after this --say line, wait for Maya to finish")
@@ -246,9 +249,12 @@ def main():
         QUIET_S = 3.0       # a tool turn is two speeches with a gap: filler, then the answer
     a.tag = f"-{uuid.uuid4().hex[:6]}"      # a private agent name: other sessions may have workers on this project
     load_env()
+    native.harden()
     OUT.mkdir(exist_ok=True)
     log_path, maya_log = OUT / "worker.log", OUT / "worker_maya.log"
-    proc = start_worker(a.persona, log_path, a.tag)
+    if a.live_as:
+        os.environ["GOOSE_DISPATCH_AS"] = a.persona
+    proc = start_worker(a.live_as or a.persona, log_path, a.tag)
     maya = start_worker("maya", maya_log, a.tag) if a.maya and not a.no_maya_worker else None
     try:
         if maya:

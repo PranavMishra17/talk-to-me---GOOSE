@@ -9,7 +9,33 @@ _YES = re.compile(r"\b(yes|yeah|yep|yup|sure|ok|okay|please do|go ahead|do it|so
 _NO = re.compile(r"\b(no(?! (?:problem|worries))|nope|not|don't|wait|hold on|never mind|nevermind|cancel)\b", re.I)
 _CHANGE = re.compile(r"\b(but|actually|instead|change)\b", re.I)
 _CLAIM = re.compile(r"\b(i.ll|i will|i.ve|i have|let (him|her|them)|pass\w*|sav\w+|note\w*|message|want me|should i|shall i|done|sent)\b", re.I)
+_ACTED = (r"added|saved|sent|passed|told|asked|booked|logged|left|recorded|forwarded|scheduled|updated|put|let (?:him|her|them)",
+          r"add|save|send|pass|tell|let (?:him|her|them)|book|log|leave|forward|schedule|update|put|get (?:that|it)")
+_FIRED = re.compile(rf"\b(?:i.ve|i have|i just|already)\s+(?:\w+\s+)?(?:{_ACTED[0]})\b|\b(?:i.ll|i will|i shall)\s+(?:\w+\s+)?(?:{_ACTED[1]})\b"
+                    rf"|\b(?:been|is|was)\s+(?:{_ACTED[0]})\b|\bgot that down\b|\bleave it with me\b", re.I)
+_OFFER = re.compile(r"\b(want me|shall i|should i|would you like|do you want|can i)\b", re.I)
+_REQUEST = re.compile(r"\b(tell|let (?:him|her|them)|pass|also|add|ask|book|remind|one more thing|leave|send)\b", re.I)
+_CHECKING = re.compile(r"^\W*(did|have|has|was|is)\b", re.I)
 _BYE = re.compile(r"\b(goodbye|good bye|bye)\b|that'?s all", re.I)
+
+
+def is_offer(said: str) -> bool:
+    """The agent asked in words whether to act, so a yes to this line is the yes the gate wants."""
+    return bool(_OFFER.search(said))
+
+
+def check_claim(reply: str, caller_text: str, pending: bool, acted: bool) -> str:
+    """What to do with a reply on a turn where no action fired. keep | confirm (the action waits on a yes, so say that) |
+    fire (the caller said yes to a spoken offer, so make the claim true) | ask (nothing is queued: queue it, ask for the yes)."""
+    if not _FIRED.search(reply) or is_offer(reply):
+        return "keep"
+    if pending:
+        return "confirm"
+    if is_yes(caller_text):
+        return "fire"
+    if acted and (not _REQUEST.search(caller_text) or _CHECKING.search(caller_text)):
+        return "keep"                # "thanks" after a real save: the claim is true
+    return "ask"
 
 
 def is_no(text: str) -> bool:

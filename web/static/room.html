@@ -17,21 +17,49 @@
   header .logo{font-family:Bangers;font-size:26px;letter-spacing:.05em;color:inherit;text-decoration:none}
   header nav a{color:inherit;text-decoration:none;margin-left:18px;font-weight:700;font-size:14px}
   header nav a:hover,header nav a:focus-visible{text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:4px}
-  main{max-width:980px;margin:0 auto;padding:28px 20px 56px}
+  main{max-width:1280px;margin:0 auto;padding:20px 20px 56px}
   .top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
-  h1{font-size:clamp(34px,6vw,48px);margin:0;overflow-wrap:anywhere}
-  .cta{display:inline-block;background:var(--radio);color:#fff;border:3px solid #1A1423;padding:9px 20px;font-family:Bangers;font-size:21px;letter-spacing:.04em;box-shadow:5px 5px 0 #1A1423;transition:transform .12s ease-out,box-shadow .12s ease-out;cursor:pointer}
+  h1{font-size:clamp(26px,3vw,36px);margin:0;overflow-wrap:anywhere}
+  .cta{display:inline-block;background:var(--radio);color:#fff;border:3px solid #1A1423;padding:9px 20px;font-family:Bangers;font-size:21px;letter-spacing:.04em;text-decoration:none;box-shadow:5px 5px 0 #1A1423;transition:transform .12s ease-out,box-shadow .12s ease-out;cursor:pointer}
   .cta:hover{transform:translate(2px,2px);box-shadow:3px 3px 0 #1A1423}
   .cta:active{transform:translate(5px,5px);box-shadow:0 0 0 #1A1423}
   .cta:focus-visible{outline:3px solid var(--sky);outline-offset:3px}
   .cta[disabled]{opacity:.6;cursor:default}
-  #status{margin:18px 0 0;padding:12px 16px;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;font-weight:700;background:var(--balloon);color:#1A1423}
+  .join{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+  .join label{font-weight:700;font-size:14px}
+  .join select{display:block;margin-top:4px;font:inherit;padding:7px 10px;border:2px solid var(--ink);background:var(--paper);color:var(--ink)}
+  .join select:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+  #status{margin:16px 0 0;padding:12px 16px;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;font-weight:700;font-size:18px;background:var(--balloon);color:#1A1423}
   #status.bad{background:var(--radio);color:#fff}
   #status.ok{background:var(--sky)}
+  #status a{color:inherit;margin-left:10px}
+  #offline{margin:16px 0 0;padding:18px 20px;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;background:var(--radio);color:#fff}
+  #offline h2{font-size:clamp(34px,5vw,56px);margin:0 0 6px}
+  #offline p{margin:0 0 10px;font-size:20px}
+  #offline code{display:block;padding:10px 14px;background:#1A1423;color:#FFF8E7;font:clamp(17px,2.2vw,26px) Consolas,monospace;overflow-wrap:anywhere}
+
+  /* The stage: read from the back of the room */
+  #stage{margin-top:20px;border:3px solid var(--ink);box-shadow:var(--shadow);padding:18px 22px}
+  .caller{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  #who{font-size:clamp(38px,5.5vw,72px);overflow-wrap:anywhere;min-width:0}
+  #tier{border:3px solid #1A1423;padding:2px 14px;font-weight:700;font-size:clamp(20px,2.6vw,32px);color:#1A1423;background:var(--paper)}
+  #tier.public{background:var(--sky)}
+  #tier.friends{background:var(--balloon)}
+  #tier.family{background:#F8961E}
+  #tier.private,#tier.owner{background:var(--radio);color:#fff}
+  #talking{margin:10px 0 0;font-size:clamp(24px,3vw,38px);font-weight:700;color:var(--mute)}
+  #talking.on{color:var(--ink)}
+  #confirm{margin:12px 0 0;padding:10px 16px;border:3px solid #1A1423;background:var(--balloon);color:#1A1423;font-weight:700;font-size:clamp(22px,2.8vw,34px)}
+  #lines{margin-top:16px;height:min(46vh,520px);overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:4px}
+  .say{max-width:88%;padding:10px 16px;border:3px solid var(--ink);border-radius:18px 18px 18px 4px;align-self:flex-start;font-size:clamp(22px,2.6vw,34px);line-height:1.3;overflow-wrap:anywhere}
+  .say.goose{background:var(--balloon);color:#1A1423;border-color:#1A1423;align-self:flex-end;border-radius:18px 18px 4px 18px}
+  .say b{display:block;font-size:.62em;line-height:1.2}
+  #hint{margin:auto;text-align:center;color:var(--mute);font-size:clamp(20px,2.4vw,28px)}
+
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:22px}
-  section{border:3px solid var(--ink);box-shadow:var(--shadow);padding:16px 18px;min-width:0}
-  section h2{font-size:26px;margin:0 0 8px}
-  section h3{font-size:15px;margin:12px 0 2px}
+  .grid section{border:3px solid var(--ink);box-shadow:var(--shadow);padding:16px 18px;min-width:0}
+  .grid h2{font-size:26px;margin:0 0 8px}
+  .grid h3{font-size:15px;margin:12px 0 2px}
   ul{list-style:none;margin:0;padding:0}
   li{padding:2px 0;overflow-wrap:anywhere}
   .now{font-weight:700}
@@ -49,50 +77,114 @@
 <main>
   <div class="top">
     <h1 class="shout" id="name">Room</h1>
-    <button class="cta" id="join">Join from browser</button>
+    <div class="join">
+      <label>Join as<select id="as"><option value="">Unknown caller</option></select></label>
+      <button class="cta" id="join">Join from browser</button>
+    </div>
   </div>
   <p id="status" role="status">Loading the room</p>
+  <div id="offline" hidden>
+    <h2 class="shout">Agent offline</h2>
+    <p>Goose is not running. Start the worker in a terminal, then open a new room.</p>
+    <code>uv run python -m app.worker dev</code>
+  </div>
+  <div id="stage" hidden>
+    <div class="caller"><span class="shout" id="who">Waiting for a caller</span><span id="tier" hidden></span></div>
+    <p id="talking"></p>
+    <p id="confirm" role="status" hidden></p>
+    <div id="lines" aria-live="polite"><p id="hint">The conversation appears here once you join.</p></div>
+  </div>
   <div class="grid" id="grid"></div>
 </main>
 <script type="module">
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const title = s => esc(String(s ?? '').replace(/^human:/, '').replace(/^./, c => c.toUpperCase()));
+const cap = s => String(s ?? '').replace(/^human:/, '').replace(/^./, c => c.toUpperCase());
+const title = s => esc(cap(s));
 const list = (rows, none) => rows.length ? `<ul>${rows.join('')}</ul>` : `<p class="quiet">${none}</p>`;
+const WAITING = {take_message: 'pass on a message', propose_slot: 'pencil in a time', summon_agent: 'bring in another assistant',
+  request_permission_from_owner: 'ask the owner', end_call: 'end the call', read_back: 'the details read back'};
 const room = decodeURIComponent(location.pathname.split('/').pop());
+const owner = new URLSearchParams(location.search).get('owner') || 'pranav';
 const opened = Date.now();
 let health = {}, live = null, notice = null;   // a join problem stays up past the next poll
+let joined = null, owners = new Set(), speaking = null, ended = false, record = null;
+const jobs = new Set();   // a call record's id is its agent's job id, and the agent's identity is agent-<job id>
 
 $('name').textContent = `Room ${room}`;
 
-function say(text, kind = '') { $('status').textContent = text; $('status').className = kind; $('status').hidden = !text; }
+function say(text, kind = '', link = '') {
+  $('status').textContent = text; $('status').className = kind; $('status').hidden = !text;
+  if (link) $('status').insertAdjacentHTML('beforeend', link);
+}
 
 function agentPanel(a) {
   const slots = Object.entries(a.slots || {});
   return `<section><h2 class="shout">${title(a.persona)}, for ${title(a.owner)}</h2>
-    <p class="quiet">Caller tier: ${esc(a.caller_tier)}</p>
     <h3>Agenda</h3>${list((a.agenda || []).map(i => `<li class="${i.id === a.focus ? 'now' : i.done ? 'done' : ''}">${esc(i.goal)}</li>`), 'No agenda yet.')}
     <h3>Slots</h3>${list(slots.map(([k, v]) => `<li>${esc(k)}: ${esc(v)}</li>`), 'Nothing collected yet.')}
-    ${a.pending_confirm ? `<h3>Waiting for a yes</h3><p class="quiet">${esc(a.pending_confirm)}</p>` : ''}
     <h3>Task log</h3>${list((a.log || []).map(l => `<li>${esc(l)}</li>`), 'Nothing logged yet.')}
     ${a.summary ? `<h3>Summary</h3><p class="quiet">${esc(a.summary)}</p>` : ''}</section>`;
 }
 
+function showCaller(s, humans) {
+  const a = Object.values(s.agents)[0], slot = a?.slots?.name, tier = a?.caller_tier;
+  const isOwner = joined && owners.has(joined.name);
+  const name = joined?.name || slot;
+  $('who').textContent = isOwner ? `${joined.name.split(' ')[0]}, the owner`
+    : name ? name + (tier === 'public' && !joined?.name ? ', not verified' : '')
+    : humans.length || joined ? 'Unknown caller' : 'Waiting for a caller';
+  const label = isOwner ? 'owner' : tier;
+  $('tier').hidden = !label || (!humans.length && !joined);
+  $('tier').className = label || '';
+  $('tier').textContent = isOwner ? 'Owner' : `${cap(tier)} tier`;
+  const wait = Object.values(s.agents).find(x => x.pending_confirm);
+  $('confirm').hidden = !wait;
+  if (wait) $('confirm').textContent = `${cap(wait.persona)} is waiting for a yes: ${WAITING[wait.pending_confirm] || wait.pending_confirm}`;
+}
+
+function showTalking(s) {
+  const by = state => s.participants.find(p => p.agent_state === state);
+  const agent = p => cap(p.persona) || 'Goose';
+  const text = speaking ? `${speaking} is talking`
+    : by('speaking') ? `${agent(by('speaking'))} is talking`
+    : by('thinking') ? `${agent(by('thinking'))} is thinking`
+    : s.participants.some(p => p.kind === 'agent') ? `${agent(s.participants.find(p => p.kind === 'agent'))} is listening` : '';
+  $('talking').textContent = text;
+  $('talking').className = text.endsWith('talking') ? 'on' : '';
+}
+
 function render(s) {
   const humans = s.participants.filter(p => p.kind !== 'agent');
-  const anyAgent = s.participants.length > humans.length;
+  const agents = s.participants.filter(p => p.kind === 'agent');
+  agents.forEach(p => jobs.add(p.identity.replace(/^agent-/, '')));
+  if (s.ended) ended = true;
+  const offline = health.agent === 'offline' && !agents.length && !ended && Date.now() - opened > 4000;
+  $('offline').hidden = !offline;
+  $('stage').hidden = offline;
   $('grid').innerHTML = `<section><h2 class="shout">In the room</h2>
-      ${list(s.participants.map(p => `<li>${esc(p.identity)}${p.agent_state ? `, ${esc(p.agent_state)}` : ''}</li>`), 'Nobody yet.')}</section>
+      ${list(s.participants.map(p => `<li>${title(p.persona || p.identity)}${p.agent_state ? `, ${esc(p.agent_state)}` : ''}</li>`), 'Nobody yet.')}</section>
     <section><h2 class="shout">Floor</h2>
       <p>${s.floor.holder ? `${title(s.floor.holder)} has the floor` : 'The floor is free'}</p>
       <p class="quiet">${s.floor.addressed_to ? `Talking to ${title(s.floor.addressed_to)}` : 'Not talking to anyone in particular'}</p></section>
     ${Object.values(s.agents).map(agentPanel).join('')}`;
-  if (health.agent === 'offline' && !anyAgent && Date.now() - opened > 4000) say('Agent offline. Start the worker, then open a new room.', 'bad');
+  showCaller(s, humans);
+  showTalking(s);
+  if (ended) showEnded();
+  else if (offline) say('');
   else if (health.livekit === 'down') say("Can't reach the room. Is the agent running?", 'bad');
-  else if (live) say('You are in the room. Your mic is on.', 'ok');
+  else if (live) say('');   // the stage already says who is on the call
   else if (notice) say(...notice);
   else if (!humans.length) say('Nobody here yet. Dial the number or join from this browser.');
   else say('');
+}
+
+async function showEnded() {
+  if (!record) for (const id of jobs) {
+    if ((await fetch(`/api/calls/${encodeURIComponent(id)}`).catch(() => ({}))).ok) { record = id; break; }
+  }
+  say(record ? 'Call ended.' : jobs.size ? 'Call ended. Saving the record.' : 'Call ended.', 'ok',
+    record ? `<a href="/app#/call/${encodeURIComponent(record)}">See this call's record</a>` : '');
 }
 
 async function poll() {
@@ -100,10 +192,77 @@ async function poll() {
     const r = await fetch(`/api/rooms/${encodeURIComponent(room)}`);
     if (!r.ok) throw new Error(r.status);
     render(await r.json());
-  } catch { $('grid').innerHTML = ''; say("Can't reach the room. Is the agent running?", 'bad'); }
+  } catch {
+    if (jobs.size) { ended = true; showEnded(); return; }   // the room closed under us: that is the call ending
+    $('grid').innerHTML = ''; $('stage').hidden = true; $('offline').hidden = true;
+    say("Can't reach the room. Is the agent running?", 'bad');
+  }
 }
 async function checkHealth() {
   try { health = await (await fetch(`/health?room=${encodeURIComponent(room)}`)).json(); } catch { health = {}; }
+}
+
+function line(seg, who, goose, text) {   // one bubble per segment; a later piece of the same segment replaces it
+  if (!text) return;
+  $('hint')?.remove();
+  const id = `seg-${seg}`;
+  let el = document.getElementById(id);
+  if (!el) {
+    el = Object.assign(document.createElement('div'), {id, className: `say ${goose ? 'goose' : ''}`});
+    el.innerHTML = '<b></b><span></span>';
+    $('lines').append(el);
+  }
+  el.firstChild.textContent = who;
+  el.lastChild.textContent = text;
+  $('lines').scrollTop = $('lines').scrollHeight;
+}
+
+function left() {
+  live = null;
+  ended = true;
+  speaking = null;
+  $('join').textContent = 'Join from browser';
+  $('as').disabled = false;
+  document.querySelectorAll('body > audio').forEach(a => a.remove());
+}
+
+function mockJoin() {   // GOOSE_MOCK: the same view, scripted, no room
+  const me = joined.name?.split(' ')[0] || 'Caller';
+  const script = [['Goose', true, joined.name ? `Hi ${me}, Goose here. What can I do for you?` : "Hi, this is Goose, Pranav's assistant. Who's calling?"],
+    [me, false, 'Is Pranav free for dinner on Saturday?'],
+    ['Goose', true, "He's free after six. Want me to pass that on to him?"], [null, false, '']];
+  let i = 0;
+  const t = setInterval(() => {
+    const [who, goose, text] = script[i];
+    speaking = who; line(i, who, goose, text);
+    if (++i === script.length) clearInterval(t);
+  }, 1400);
+  return {disconnect() { clearInterval(t); left(); }};
+}
+
+async function liveJoin(url, token) {
+  const {Room, RoomEvent} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2.15.4/+esm');
+  const lk = new Room();
+  const label = identity => {
+    if (identity === lk.localParticipant.identity) return joined.name?.split(' ')[0] || 'Caller';
+    const p = lk.remoteParticipants.get(identity);
+    try { return cap(JSON.parse(p.attributes['goose.state']).persona); } catch { return p?.name?.split(' ')[0] || 'Goose'; }
+  };
+  lk.registerTextStreamHandler('lk.transcription', async (reader, from) => {
+    const seg = reader.info.attributes?.['lk.segment_id'] || reader.info.id;
+    let text = '';
+    for await (const piece of reader) { text += piece; line(seg, label(from.identity), from.identity !== lk.localParticipant.identity, text); }
+  });
+  lk.on(RoomEvent.TrackSubscribed, t => { if (t.kind === 'audio') document.body.append(t.attach()); });
+  lk.on(RoomEvent.TrackUnsubscribed, t => t.detach().forEach(el => el.remove()));
+  lk.on(RoomEvent.ActiveSpeakersChanged, list => { speaking = list[0] ? label(list[0].identity) : null; });
+  lk.on(RoomEvent.Disconnected, left);
+  try {
+    await lk.connect(url, token);
+    await lk.localParticipant.setMicrophoneEnabled(true);
+    await lk.startAudio();
+  } catch (e) { lk.off(RoomEvent.Disconnected, left); lk.disconnect(); throw e; }
+  return lk;
 }
 
 async function join() {
@@ -112,32 +271,26 @@ async function join() {
   btn.disabled = true;
   notice = null;
   try {
-    const r = await fetch(`/rooms/${encodeURIComponent(room)}/token`, {method: 'POST'});
+    joined = {name: $('as').value || null};
+    const r = await fetch(`/rooms/${encodeURIComponent(room)}/token`, {method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({name: joined.name, owner})});
     if (!r.ok) throw new Error(`the server answered ${r.status}`);
     const {url, token} = await r.json();
-    if (!url) { notice = ['Mock mode: there is no real room to join.']; return; }
-    const {Room, RoomEvent} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2.15.4/+esm');
-    const lk = new Room();
-    lk.on(RoomEvent.TrackSubscribed, t => { if (t.kind === 'audio') document.body.append(t.attach()); });
-    lk.on(RoomEvent.TrackUnsubscribed, t => t.detach().forEach(el => el.remove()));
-    lk.on(RoomEvent.Disconnected, () => {
-      live = null;
-      btn.textContent = 'Join from browser';
-      document.querySelectorAll('body > audio').forEach(a => a.remove());
-    });
-    try {
-      await lk.connect(url, token);
-      await lk.localParticipant.setMicrophoneEnabled(true);
-      await lk.startAudio();
-    } catch (e) { lk.disconnect(); throw e; }
-    live = lk;
+    live = url ? await liveJoin(url, token) : mockJoin();
+    ended = false; record = null;
     btn.textContent = 'Leave';
+    $('as').disabled = true;
   } catch (e) {
+    joined = null;
     notice = [e.name === 'NotAllowedError' ? 'Allow the microphone for this page, then join again.' : `Could not join: ${e.message}`, 'bad'];
   } finally { btn.disabled = false; }
 }
 
 $('join').onclick = join;
+fetch(`/api/callers?owner=${encodeURIComponent(owner)}`).then(r => r.json()).then(list => {
+  owners = new Set(list.filter(c => c.owner).map(c => c.name));
+  $('as').append(...list.map(c => new Option(c.owner ? `${c.name} (owner)` : c.name, c.name)));
+}).catch(() => {});
 await checkHealth();
 await poll();
 setInterval(poll, 1000);

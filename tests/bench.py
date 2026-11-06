@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from livekit.agents import AgentSession, inference, mock_tools
 
 from app.agent import GooseAgent
+from app.providers import _llm
 from proxy_core import shape
 from proxy_core.config import load_config, load_env
 
@@ -29,7 +30,7 @@ def texts(result):
 
 async def run_turns(caller, turns):
     cfg = load_config()
-    llm = inference.LLM(model=os.environ.get("BENCH_LLM") or cfg["providers"]["llm"]["model"])   # BENCH_LLM compares models without touching config
+    llm = inference.LLM(model=os.environ["BENCH_LLM"]) if os.environ.get("BENCH_LLM") else _llm(cfg["providers"]["llm"], cfg)   # BENCH_LLM compares models without touching config
     out, said = [], []
     CALLS.clear()
     async with AgentSession(llm=llm) as session:
