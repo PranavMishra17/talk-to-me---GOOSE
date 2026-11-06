@@ -1,16 +1,23 @@
 """The reset between test and demo, and Skyler's calls in the history. No network."""
 import os
+import re
 import subprocess
 import sys
+import threading
+import time
 from datetime import datetime
+
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+import stage as stage_cli
 from app.agent import GooseAgent
-from app.api import app
+from app.api import STATIC, _first_persona, app
 from app.worker import _save
 from proxy_core import calls, vault
-from proxy_core.config import ROOT
+from proxy_core.config import ROOT, agent_name, load_config
 
 
 def stage(cmd, tmp_path):
@@ -74,3 +81,40 @@ def test_skyler_calls_save_with_a_hangup_reason_and_stay_out_of_pranavs_briefing
     assert "AJ_jesse" in str(TestClient(app).get("/api/calls").json())
     assert "AJ_jesse" not in str(calls.list_calls("pranav")) and "AJ_jesse" in str(calls.list_calls("skyler"))
     assert vault.owner_dir("skyler")
+
+
+def test_every_demo_button_reaches_a_worker_up_starts():
+    up = [x for x in stage_cli.services() if x["name"] != "web"]
+    registered = {agent_name(x["env"]["GOOSE_PERSONA"]) for x in up}
+    assert all("GOOSE_DISPATCH_AS" not in x["env"] and "GOOSE_AGENT_TAG" not in x["env"] for x in up)
+    page = (STATIC / "demo.html").read_text(encoding="utf-8")
+    owners = re.findall(r'data-owner="(\w+)"', page)
+    allowed = [a for a in re.findall(r'data-allowed="(\w*)"', page) if a]
+    assert owners == ["pranav", "skyler"] and allowed == ["maya"] and 'id="talk"' in page
+    personas = load_config()["personas"]
+    wanted = {n for o in owners for n, p in personas.items() if p["owner"] == o} | set(allowed) | {_first_persona()[0]}
+    assert wanted == {"goose", "jesse", "maya"} and wanted <= registered
+
+
+def test_up_restarts_a_crash_and_stops_everything(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(stage_cli, "OUT", tmp_path)
+    flag, alive = tmp_path / "crashed", tmp_path / "alive"
+    child = (f"import pathlib, sys, time\nf = pathlib.Path({str(flag)!r})\nprint('up now', flush=True)\n"
+             f"if not f.exists():\n    f.touch()\n    sys.exit(3)\n"
+             f"while True:\n    pathlib.Path({str(alive)!r}).write_text(str(time.time()))\n    time.sleep(0.1)\n")
+    stop = threading.Event()
+    item = {"name": "fake", "cmd": [sys.executable, "-c", child], "env": dict(os.environ), "ready": "up now"}
+    t = threading.Thread(target=stage_cli.serve, args=([item], stop))
+    t.start()
+    end = time.time() + 20
+    while not alive.exists() and time.time() < end:
+        time.sleep(0.1)
+    assert alive.exists()                       # the second start, after the crash
+    stop.set()
+    t.join(20)
+    assert not t.is_alive()
+    beat = alive.read_text()
+    time.sleep(0.5)
+    assert alive.read_text() == beat            # the child is really gone
+    out = capsys.readouterr().out
+    assert out.count("READY fake") == 2 and "fake exited with 3" in out and "stopped" in out
