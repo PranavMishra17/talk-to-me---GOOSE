@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.harness/
+core-spec/
+HANDOFF.html
+PORT.html
+SETUP.html
+.env.example

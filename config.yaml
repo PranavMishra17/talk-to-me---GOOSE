@@ -1,0 +1,36 @@
+# Everything model-related lives here. `kind` picks a constructor in app/providers.py;
+# unknown kinds raise at startup. `mock` works for every provider and touches no network.
+# Always launch with `dev`: self-hosted `start` silently drops adaptive interruption to VAD.
+providers:
+  stt:
+    kind: livekit_inference
+    model: deepgram/nova-3             # flux toggle: deepgram/flux-general-en + turn.turn_detection: stt
+    language: en
+    flux: {eager_eot_threshold: 0.4, eot_threshold: 0.8}   # sent only when the model is flux
+  stt_alt: {kind: byo_assemblyai, model: assemblyai/universal-3-5-pro}   # BYO key, 66 ms finalize, best telephony WER. Not wired tonight.
+  llm: {kind: livekit_inference, model: google/gemini-2.5-flash-lite}    # 241 ms TTFT. Alternates: google/gemma-4-31b-it (92 ms), google/gemini-3.5-flash-lite (373 ms). Not gemini-3.8-flash (2.3 s).
+  llm_tools: {enabled: false, model: openai/gpt-5.6-luna}                # optional per-turn route for tool turns; off, nothing reads it yet
+  tts: {kind: livekit_inference, model: cartesia/sonic-3.5, language: en}   # 126 ms first audio; voice comes from the persona's pack
+  vad: {kind: livekit_inference, model: silero}
+  noise_cancellation: {kind: bvc_telephony}                              # none | bvc_telephony | mock. Applied to SIP participants only.
+turn:
+  turn_detection: audio            # audio | stt | vad
+  endpointing: {mode: dynamic, min_delay: 0.3, max_delay: 1.5}           # holds over 1.5 s read as dead air
+  # Adaptive is suppressed in the first ~1 s of agent speech (backchannel_boundary). Real barge-ins never replay the tail; only false interruptions resume.
+  interruption: {mode: adaptive, min_duration: 0.5, min_words: 0, false_interruption_timeout: 1.5, resume_false_interruption: true}
+  preemptive_generation: {enabled: true, preemptive_tts: false}
+  user_turn_limit: {max_duration: 30.0}
+decider:
+  backend: jev                     # jev | keyword | llm | mock | laya_local (stub, local fallback)
+  jev_model: "~typesafe/jev-latest"
+  llm_model: google/gemini-2.5-flash-lite
+  addressee_confidence: 0.7        # below this, Jev's addressee counts as nobody
+  hook_wait_s: 0.3                 # longest the reply may wait on a Jev answer started at the STT final
+session:
+  silence_nudges_s: [6, 12, 20]
+  backchannel_allowlist: [yeah, ok, mm-hm, right, sure, go on]
+  echo: {window_s: 3.0, overlap: 0.7}
+limits: {max_turns_per_item: 3, max_turns_per_call: 40, max_summons: 2, floor_lease_s: 20, max_agent_streak: 2}
+personas:
+  ash: {owner: pranav, pack: default}
+  maya: {owner: rohan, pack: jarvis}

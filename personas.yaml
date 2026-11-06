@@ -1,0 +1,25 @@
+# Tier order: public < friends < family < private. A contact's tier is what THEY may see of the owner.
+# Unknown callers are public. Raw data here never enters a prompt; only policy.get_facts() output does.
+pranav:
+  assistant: ash
+  facts:
+    - {key: availability, value: "Free Saturday evening after 6pm", tier: public}
+    - {key: city, value: "Boston", tier: public}
+    - {key: favourite_restaurant, value: "Neptune Oyster", tier: friends}
+    - {key: home_address, value: "14 Beacon Hill Lane, Boston", tier: family}
+    - {key: phone, value: "+1 555 0100 111", tier: private}
+  contacts:
+    sam: {tier: friends, numbers: ["+15550100222"]}
+    rohan: {tier: family, numbers: ["+15550100333"]}
+    lena: {tier: friends, numbers: ["+15550100444"]}
+rohan:
+  assistant: maya
+  facts:
+    - {key: availability, value: "Busy until Saturday 5pm, free after", tier: friends}
+    - {key: city, value: "Cambridge", tier: public}
+    - {key: favourite_restaurant, value: "Oleana", tier: friends}
+    - {key: home_address, value: "22 Hampshire Street, Cambridge", tier: family}
+    - {key: phone, value: "+1 555 0100 333", tier: private}
+  contacts:
+    pranav: {tier: friends, numbers: ["+15550100111"]}
+    lena: {tier: family, numbers: ["+15550100444"]}
