@@ -23,9 +23,19 @@ def test_runtime_joins_seeds_newest_first_and_mark_done_survives(tmp_path, monke
 
 def test_brief_comes_from_records(monkeypatch, tmp_path):
     monkeypatch.setenv("GOOSE_DATA_DIR", str(tmp_path))   # harness runs write real records to runtime/
-    text = calls.brief(calls.list_calls(), "Pranav")
-    assert "2 need you" in text and "Lena" in text and "Rohan" in text
-    assert calls.brief([record("a", contact={"name": "Sam Okafor"})], "Pranav").startswith("Hi Pranav. 1 call so far.")
+    assert calls.brief(calls.list_calls(), "Pranav") == "Hi Pranav, Rohan needs to know if you can get Mum from Logan on Thursday. Want the rest?"
+    assert calls.brief([record("a", summary="Pranav's approval is the blocker for Pranav.")], "Pranav") == "Hi Pranav, your approval is the blocker for you."
+    assert calls.brief([{**record("a"), "actions": []}], "Pranav") == "Hi Pranav, nothing needs you. Want the rest?"
+    assert calls.brief([], "Pranav") == "Hi Pranav, no calls yet."
+
+
+def test_a_tagged_run_never_reaches_the_real_history(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOOSE_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("GOOSE_AGENT_TAG", "-abc123")
+    calls.write_call(record("tagged"))
+    assert calls.get_call("tagged")
+    monkeypatch.delenv("GOOSE_AGENT_TAG")
+    assert calls.get_call("tagged") is None
 
 
 def test_seeds_have_the_web_shape():

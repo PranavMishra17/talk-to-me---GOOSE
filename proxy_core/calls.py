@@ -3,10 +3,10 @@ Shape, which the web app depends on: {id, started_at, ended_at, kind, number, co
 outcome, actions, transcript}. Pure: no livekit, and no model, so a record cannot fail at hang-up.
 """
 import json
-import os
+import re
 from pathlib import Path
 
-from proxy_core.config import ROOT
+from proxy_core.config import ROOT, data_root
 from proxy_core.slots import _message
 
 SEED = ROOT / "data" / "calls"
@@ -16,7 +16,7 @@ _CODE_ENDS = (*_BAD_ENDS, "caller said goodbye", "caller confirmed")
 
 
 def runtime_dir() -> Path:
-    return Path(os.environ.get("GOOSE_DATA_DIR") or ROOT / "runtime") / "calls"
+    return data_root() / "calls"
 
 
 def list_calls() -> list[dict]:
@@ -84,23 +84,20 @@ def outcome(who: str, log: list[str], slots: dict, turns: list[dict]) -> tuple[s
     return summary, status, [{"text": a, "done": False} for a in actions]
 
 
+def to_owner(text: str, owner: str) -> str:
+    """A record says "Pranav's approval is the blocker"; said to Pranav that is "your approval"."""
+    return re.sub(rf"\b{owner}\b", "you", re.sub(rf"\b{owner}'s\b", "your", text))
+
+
 def brief(records: list[dict], owner: str) -> str:
-    """What the owner hears on opening the app. From records only, so it cannot invent a call."""
+    """What the owner hears first: the newest open item, then the offer of the rest. From records only."""
     phone = [c for c in records if c["kind"] == "phone"]
     if not phone:
-        return f"Hi {owner}. No calls yet."
-    words = [f"Hi {owner}. {len(phone)} call{'s' * (len(phone) > 1)} so far."]
-    sorted_out = [c for c in phone if c["outcome"] == "resolved"]
-    if sorted_out:
-        words.append(f"Sorted: {sorted_out[0]['summary']}")
+        return f"Hi {owner}, no calls yet."
     waiting = [c for c in phone if any(not a["done"] for a in c["actions"])]
-    if not waiting:
-        return " ".join([*words, "Nothing needs you."])
-    words += [f"{len(waiting)} need{'s' * (len(waiting) == 1)} you.", *(c["summary"] for c in waiting[:2])]
-    names = [c["contact"]["name"].split()[0] if c.get("contact") else "the unknown caller" for c in waiting[:2]]
-    if len(names) == 2:
-        words.append(f"Which first, {names[0]} or {names[1]}?")
-    return " ".join(words)
+    first = to_owner(waiting[0]["summary"], owner) if waiting else "nothing needs you"
+    rest = len(phone) > 1 or not waiting
+    return f"Hi {owner}, {first.rstrip('.')}." + (" Want the rest?" if rest else "")
 
 
 if __name__ == "__main__":
@@ -112,5 +109,5 @@ if __name__ == "__main__":
     assert outcome("Unknown caller", [], {}, [])[:2] == ("Unknown hung up without a word.", "info")
     assert outcome("Sam", ["end: caller said goodbye"], {}, [{"who": "caller", "text": "bye"}])[1] == "resolved"
     assert outcome("Sam", ["end: hostile caller"], {}, [{"who": "caller", "text": "x"}])[1] == "info"
-    assert brief([], "Pranav") == "Hi Pranav. No calls yet."
+    assert brief([], "Pranav") == "Hi Pranav, no calls yet."
     print(brief(list_calls(), "Pranav"))

@@ -48,7 +48,7 @@ class OwnerAgent(DataTools, Agent):
     @function_tool
     async def list_calls(self) -> str:
         """Every call, newest first: id, who, what happened, what is still open."""
-        return json.dumps([{"id": c["id"], "who": (c["contact"] or {}).get("name", "unknown caller"), "summary": c["summary"],
+        return json.dumps([{"id": c["id"], "who": (c["contact"] or {}).get("name", "unknown caller"), "summary": calls.to_owner(c["summary"], self.owner.title()),
                             "outcome": c["outcome"], "open": [a["text"] for a in c["actions"] if not a["done"]]}
                            for c in calls.list_calls() if c["kind"] == "phone"], ensure_ascii=False)
 
