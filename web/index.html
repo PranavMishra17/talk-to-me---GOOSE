@@ -246,9 +246,11 @@ async function liveTalk({url, token}) {
   room.on(RoomEvent.Disconnected, () => { if (talk) location.hash = '#/'; });
 
   const session = {end() { clearTimeout(late); room.disconnect(); }};
-  await room.connect(url, token);
-  await room.localParticipant.setMicrophoneEnabled(true);
-  await room.startAudio();
+  try {
+    await room.connect(url, token);
+    await room.localParticipant.setMicrophoneEnabled(true);
+    await room.startAudio();
+  } catch (e) { session.end(); throw e; }   // no mic: leave, or the room stays open with Goose in it
   show();
   return session;
 }

@@ -16,13 +16,13 @@ uv run python -m app.worker console      # talk to Ash locally (credits; Ctrl+C 
 
 ## Frontend
 
-No keys needed. This serves the page with fake data from `web/mock-state.json`:
+No keys needed. This serves the page with fake data from `web/mock-*.json`:
 
 ```bash
 GOOSE_MOCK=1 uv run uvicorn app.api:app --port 8000     # PowerShell: $env:GOOSE_MOCK=1; uv run uvicorn app.api:app --port 8000
 ```
 
-Open http://localhost:8000 and press New call. Change only `web/`. The API is five calls:
+Open http://localhost:8000. Change only `web/`. The API:
 
 | Call | Returns |
 |---|---|
