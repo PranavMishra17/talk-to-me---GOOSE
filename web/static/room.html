@@ -108,7 +108,7 @@
   <div class="grid" id="grid"></div>
 </main>
 <script type="module">
-import {inputBar, liveInput} from '/talkmode.js';
+import {audioGate, inputBar, liveInput} from '/talkmode.js';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const cap = s => String(s ?? '').replace(/^human:/, '').replace(/^./, c => c.toUpperCase());
@@ -299,7 +299,7 @@ async function liveJoin(url, token) {
     await lk.connect(url, token);
     bar.attach(await liveInput(lk, createLocalAudioTrack));
   } catch (e) { lk.off(RoomEvent.Disconnected, left); lk.disconnect(); throw e; }
-  lk.startAudio().catch(() => addEventListener('click', () => lk.startAudio(), {once: true}));   // a browser may want one click first
+  audioGate(lk, RoomEvent);
   return lk;
 }
 

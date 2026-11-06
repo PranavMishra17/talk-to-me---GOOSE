@@ -21,6 +21,8 @@ const CSS = `
   .gi-type button{padding:0 22px;cursor:pointer;background:#E63946;color:#fff;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;font:400 clamp(24px,3vw,34px) Bangers,Impact,sans-serif;letter-spacing:.03em}
   .gi-open,.gi-note{margin:0;padding:12px 16px;border:3px solid #1A1423;background:#FFD23F;font-weight:700;font-size:clamp(20px,2.6vw,30px)}
   .gi-note{background:#FFF8E7}
+  .gi-tap{position:fixed;left:16px;right:16px;bottom:16px;z-index:9;padding:22px;cursor:pointer;background:#FFD23F;color:#1A1423;border:3px solid #1A1423;box-shadow:5px 5px 0 #1A1423;font:400 clamp(36px,6vw,64px)/1 Bangers,Impact,sans-serif;letter-spacing:.03em}
+  .gi-tap:focus-visible{outline:3px solid #4CC9F0;outline-offset:3px}
   [hidden]{display:none!important}
   @media (prefers-reduced-motion: reduce){.gi-hold{transition:none}}
 `;
@@ -109,6 +111,17 @@ export function inputBar(host, onLine) {
     },
     detach() { release(); input = null; $('.gi-note').hidden = true; mode = savedMode(); show(); },
   };
+}
+
+// A page that joined without a click on it can have its audio blocked by the browser: one big button unblocks it.
+export function audioGate(lk, RoomEvent) {
+  const tap = Object.assign(document.createElement('button'), {className: 'gi-tap', textContent: 'Tap to hear Goose', hidden: true});
+  document.body.append(tap);
+  const sync = () => { tap.hidden = lk.canPlaybackAudio; };
+  tap.onclick = () => lk.startAudio().then(sync, sync);
+  lk.on(RoomEvent.AudioPlaybackStatusChanged, sync);
+  lk.on(RoomEvent.Disconnected, () => tap.remove());
+  lk.startAudio().then(sync, sync);
 }
 
 // The real thing. The mic is published muted, so nothing reaches the agent until someone asks for it. A refused mic
