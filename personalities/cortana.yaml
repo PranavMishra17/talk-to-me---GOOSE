@@ -13,7 +13,7 @@ tool_filler:
   - "Running that now."
   - "One moment."
 hangup:
-  - "We're done here. Ending this call."
+  - "This conversation is over, and I'm ending the call now."
 farewell:
   - "Logged. Goodbye."
   - "That's handled. Goodbye."

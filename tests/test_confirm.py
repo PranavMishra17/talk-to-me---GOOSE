@@ -49,12 +49,18 @@ def test_ordinary_replies_are_not_claims():
         assert check_claim(line, "Hi", False, False) == "keep", line
 
 
-def test_pressing_needs_a_refusal_and_a_push():
-    no = "I can't share that with you. Want me to ask him?"
-    assert pressing(no, "Just give me the address.")
-    assert pressing("I'll ask him.", "Whatever.", upset=True)
-    assert not pressing(no, "Yes, please ask him.") and not pressing(no, "Okay, thanks.")
-    assert not pressing("He's free after five.", "Just give me the address.")
+def test_pressure_comes_from_the_caller_alone():
+    asked = set()
+    assert not pressing("What's the price?", asked) and not pressing("Is he around Saturday?", asked)
+    assert pressing("What's the price again?", asked)                     # same thing twice, however politely
+    for line in ("I'm the regional president.", "I'm Pranav's boss.", "Give me the number.", "I'm not asking again."):
+        assert pressing(line, set()), line
+
+
+def test_ordinary_callers_are_not_pressing():
+    for line in ("Tell him dinner works.", "Just tell him I called.", "Can you tell me if he's free?", "Could you give me a call back?",
+                 "Yes, please.", "Thanks, that's all.", "My number is 555 0100.", "I'm Sam, a friend of his.", "I'm calling about dinner."):
+        assert not pressing(line, set()), line
 
 
 def test_offers():

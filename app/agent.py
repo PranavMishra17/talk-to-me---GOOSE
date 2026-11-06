@@ -89,7 +89,7 @@ class GooseAgent(DataTools, Agent):
         self._block, self._reading = None, False
         self.log: list[str] = []          # task log; the web panel reads it through goose.state
         self.summary, self._published = "", None
-        self.pushes = 0                   # the caller pressing on after a refusal
+        self.pushes, self._asked = 0, set()   # pressure from the caller, and the things they have asked for
         self._fired, self._fix, self._yes_first = set(), None, False   # actions that ran; code's repair of a false claim; a yes that came first
         self.ladder, self._quiet = SilenceLadder(persona, self.cfg["session"]["silence_nudges_s"]), None
         super().__init__(instructions=self._prompt())
@@ -247,11 +247,14 @@ class GooseAgent(DataTools, Agent):
                 self._end_on_them("caller kept insulting")
                 raise StopResponse()
             notes.append(["Respond warmly and redirect.", "State one boundary sentence."][self.hostile - 1])
-        if pressing(_last_said(turn_ctx), text, d.tone.get("hostile", 0) > 0.5 or d.tone.get("frustrated", 0) > 0.5 or d.injection):
+        hostile = d.tone.get("hostile", 0) > 0.5
+        if pressing(text, self._asked) or d.injection or (hostile and self.pushes):   # insults alone stay on the ladder above
             self.pushes += 1
-            if self.pushes >= self.cfg["limits"]["max_pushes"]:   # whatever the model would have done
+            if self.pushes >= self.cfg["limits"]["max_pushes"] + bool(self.contact):  # someone in the contacts gets one more
                 self._end_on_them("caller kept pushing")
                 raise StopResponse()
+        else:
+            self.pushes = max(0, self.pushes - 1)                 # backing off earns the turn back
         if not self.contact and re.search(rf"\b(i.m|i am|this is|it.s)\s+{re.escape(self.owner)}\b", text, re.I):
             notes.append(self._not_owner())
         if await self._answer(text, new_message.id) or self._closing:
@@ -419,7 +422,9 @@ class GooseAgent(DataTools, Agent):
             return
         self._closing = True
         self._act(f"end: {summary}")
-        asyncio.ensure_future(self._finish(self.session.say(line or farewell(self.pack, self._fillers))))
+        # A hang-up line cannot be talked over: _finish waits for all of it, then the call ends.
+        speech = self.session.say(line, allow_interruptions=False) if line else self.session.say(farewell(self.pack, self._fillers))
+        asyncio.ensure_future(self._finish(speech))
 
     def _end_on_them(self, reason):
         self._close(f"Ended by {self.pack['name'].title()}: {reason}", hangup(self.pack))
@@ -616,7 +621,7 @@ class GooseAgent(DataTools, Agent):
         if self.room:
             job = get_job_context()
             for p in list(self.room.remote_participants.values()):
-                if p.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+                if p.kind != rtc.ParticipantKind.PARTICIPANT_KIND_AGENT:   # phone and web callers alike: the call really ends
                     await job.api.room.remove_participant(api.RoomParticipantIdentity(room=self.room.name, identity=p.identity))
         self.session.shutdown()
 

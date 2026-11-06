@@ -13,7 +13,7 @@ tool_filler:
   - "Dobby checks at once!"
   - "One moment, Dobby is fetching."
 hangup:
-  - "Dobby is done with you now. Goodbye."
+  - "Dobby has tried very hard, but Dobby is leaving now. Goodbye."
 farewell:
   - "Dobby will tell Pranav! Goodbye!"
   - "Dobby goes now! Goodbye!"

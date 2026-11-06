@@ -14,7 +14,7 @@ tool_filler:
   - "One sec, looking."
   - "Let me see."
 hangup:
-  - "No. We're done here. Bye."
+  - "This is going nowhere, so I'm ending the call here. Bye."
 farewell:
   - "Noted. Bye for now."
   - "Leave it with me. Bye."

@@ -13,7 +13,7 @@ tool_filler:
   - "Querying."
   - "Stand by."
 hangup:
-  - "Honesty setting at one hundred percent: we're done here. Goodbye."
+  - "Patience setting has reached zero. I'm ending this call. Goodbye."
 farewell:
   - "Logged. Goodbye."
   - "Conversation closed. Goodbye."

@@ -12,7 +12,7 @@ tool_filler:
   - "Allow me to check."
   - "Let me look into that."
 hangup:
-  - "I believe we are finished here. Good day."
+  - "This has ceased to be productive, so I shall end the call here. Good day."
 farewell:
   - "Good day."
   - "I shall bid you good day."
