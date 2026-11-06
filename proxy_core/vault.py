@@ -1,4 +1,4 @@
-"""Pranav's mock data, filtered by tier in code so the model never sees a record above the caller's tier. No livekit."""
+"""Each owner's mock data, filtered by tier in code so the model never sees a record above the caller's tier. No livekit."""
 import json
 import os
 from datetime import date, datetime, timedelta
@@ -9,9 +9,15 @@ from proxy_core.policy import TIERS
 from proxy_core.speech import spoken_day, spoken_span
 
 DATA = ROOT / "data"
-OWNER = "pranav"              # whose data this is; another owner's assistant reads nothing from here
+OWNER = "pranav"              # data/ itself is his; any other owner reads data/<owner>/ and nothing else
 PREFETCH_WORDS = 150         # the bundle rides on every turn's prompt, so it stays short
 PHONE_MAX = "family"          # caller ID can be spoofed, so no phone call reaches private data, not even the owner's number
+
+
+def owner_dir(owner: str) -> Path | None:
+    """The one folder this owner's assistant reads. None = this owner has no data."""
+    d = DATA if owner == OWNER else DATA / owner
+    return d if d.is_dir() else None
 
 
 def _rank(tier) -> int:
@@ -33,7 +39,9 @@ def _search(name: str, query: str, tier: str, dir=DATA, limit: int = 3) -> list[
     """Every query word must appear, so "dinner Saturday" narrows. An empty query gives the newest few."""
     rows = sorted(visible(_load(name, dir), tier), key=lambda r: r.get("date", ""), reverse=True)
     words = query.lower().split()
-    return [r for r in rows if all(w in json.dumps(r).lower() for w in words)][:limit]
+    text = [(r, json.dumps(r).lower()) for r in rows]
+    hits = [r for r, t in text if all(w in t for w in words)]
+    return (hits or [r for r, t in text if any(w in t for w in words if len(w) > 3)])[:limit]   # a model's query rarely matches word for word
 
 
 def search_email(query: str, tier: str, dir=DATA) -> list[dict]:
@@ -89,14 +97,23 @@ def _local(dir) -> list[dict]:
 
 def contacts(dir=DATA) -> list[dict]:
     """contacts.json merged with the gitignored local file. A local entry replaces the same name."""
-    return list({c["name"]: c for c in _load("contacts", dir) + _local(dir)}.values())
+    local = [] if DATA in dir.parents else _local(dir)      # the real numbers are Pranav's; an owner folder never merges them
+    return list({c["name"]: c for c in _load("contacts", dir) + local}.values())
 
 
-def find_contact(number: str, owner: str = OWNER, dir=DATA) -> dict | None:
+def number_for(name: str | None, owner: str = OWNER) -> str | None:
+    """The web Join as names a contact. The number stays on the server: an attribute would reach every browser in the room."""
+    home = owner_dir(owner)
+    c = next((c for c in contacts(home) if c["name"] == name), None) if home else None
+    return c["numbers"][0] if c and c.get("numbers") else None
+
+
+def find_contact(number: str, owner: str = OWNER, dir=None) -> dict | None:
     """Only a number from caller ID finds a contact. A name the caller says never reaches this."""
-    digits = _digits(number or "")
-    if owner != OWNER or not digits:
+    digits, home = _digits(number or ""), owner_dir(owner)
+    if home is None or not digits:
         return None
+    dir = dir or home
     return next((c for c in contacts(dir) if digits in map(_digits, c.get("numbers", []))), None)
 
 
@@ -105,9 +122,10 @@ def _relevant(rows: list[dict], first: str, topics: list[str]) -> list[dict]:
     return [r for r in rows if first in json.dumps(r) and set(r.get("topics", ["personal"])) & set(topics)]
 
 
-def prefetch(owner: str, contact: dict, past_calls: list[dict], today: date | None = None, dir=DATA, max_words: int = PREFETCH_WORDS) -> str:
+def prefetch(owner: str, contact: dict, past_calls: list[dict], today: date | None = None, dir=None, max_words: int = PREFETCH_WORDS) -> str:
     """What the agent knows before it says hello, so its first replies need no tool. Tier-filtered like every read."""
-    if owner != OWNER:
+    dir = dir or owner_dir(owner)
+    if dir is None:
         return ""
     tier, first = phone_tier(contact["tier"]), contact["name"].split()[0]
     topics = contact.get("topics", ["personal"])

@@ -15,7 +15,7 @@ from proxy_core.calls import get_call, list_calls
 from proxy_core.config import ROOT, agent_name, load_config, load_env
 from proxy_core.personality import cards, list_packs
 from proxy_core.policy import TIERS
-from proxy_core.vault import _load, _rank, contacts as all_contacts
+from proxy_core.vault import OWNER, _load, _rank, contacts as all_contacts, owner_dir
 
 load_env()
 MOCK = os.environ.get("GOOSE_MOCK") == "1"
@@ -30,6 +30,11 @@ class Talk(BaseModel):
     pack: str | None = None   # None keeps the persona's own pack
 
 
+class Join(BaseModel):
+    name: str | None = None   # a contact's name; None joins as an unknown caller
+    owner: str = OWNER        # whose contact book the name is in
+
+
 class NewRoom(BaseModel):
     owner: str
     pack: str | None = None
@@ -39,6 +44,12 @@ class NewRoom(BaseModel):
 def _phone() -> str:
     """Only ever from the environment: the repo is public."""
     return os.environ.get("GOOSE_PHONE_NUMBER") or os.environ.get("GOOSE_DIAL_IN") or ("+1 555 0100" if MOCK else "")
+
+
+def _book(owner: str) -> list[dict]:
+    """One owner's contacts. Checked against config: this comes from a URL and becomes a folder name."""
+    home = owner_dir(owner) if owner in [p["owner"] for p in load_config()["personas"].values()] else None
+    return all_contacts(home) if home else []
 
 
 def _pack(name: str | None, default: str) -> str:
@@ -58,10 +69,10 @@ def live_state(name: str, floor_json: str, people: list) -> dict:
     for p in people:
         attrs = dict(p.attributes)
         is_agent = p.kind == AGENT_KIND
-        participants.append({"identity": p.identity, "kind": "agent" if is_agent else "human",
+        s = json.loads(attrs["goose.state"]) if is_agent and attrs.get("goose.state") else None
+        participants.append({"identity": p.identity, "kind": "agent" if is_agent else "human", "persona": s and s["persona"],
                              "agent_state": attrs.get("lk.agent.state")})
-        if is_agent and attrs.get("goose.state"):
-            s = json.loads(attrs["goose.state"])
+        if s:
             agents[s["persona"]] = s
     floor = json.loads(floor_json) if floor_json else {}
     return {"room": name, "participants": participants, "agents": agents,
@@ -82,7 +93,8 @@ async def me():
 
 @app.get("/config")
 async def config():
-    return {"phone": _phone()}
+    owners = [{"id": p["owner"], "name": p["owner"].title(), "pack": p["pack"]} for p in load_config()["personas"].values()]
+    return {"phone": _phone(), "owners": owners}
 
 
 @app.get("/packs")
@@ -95,7 +107,7 @@ async def health(room: str | None = None):
     """LiveKit lists no workers. An agent in a room is proof, and for a named room so is a job a worker took:
     a dispatch nobody can serve has no jobs. With no room and no agent on a call, nothing can be said."""
     if MOCK:
-        return {"livekit": "ok", "agent": "online"}
+        return {"livekit": "ok", "agent": "offline" if room == "mock-offline" else "online"}
     lk = None
     try:
         lk = _lk()
@@ -134,6 +146,13 @@ async def contacts():
     return [{"name": c["name"], "relationship": c.get("relationship"), "tier": c.get("tier"),
              "numbers": ["\u2022\u2022\u2022\u2022 " + "".join(d for d in n if d.isdigit())[-4:] for n in c.get("numbers", [])]}
             for c in all_contacts()]
+
+
+@app.get("/api/callers")
+async def callers(owner: str = OWNER):
+    """Join as: names only, the owner first."""
+    found = [{"name": c["name"], "owner": c.get("relationship") == "owner"} for c in _book(owner)]
+    return sorted(found, key=lambda c: not c["owner"])
 
 
 @app.get("/api/data")
@@ -182,6 +201,8 @@ async def rooms():
 @app.get("/api/rooms/{name}")
 async def room_state(name: str):
     if MOCK:
+        if name == "mock-offline":
+            return {"room": name, "participants": [], "agents": {}, "floor": {"holder": None, "addressed_to": None}}
         return {**json.loads(MOCK_FILE.read_text(encoding="utf-8")), "room": name}
     lk = _lk()
     try:
@@ -192,7 +213,7 @@ async def room_state(name: str):
             people = None
         if people is None:
             if name in LAST:
-                return LAST[name]
+                return {**LAST[name], "ended": True}
             raise HTTPException(404, "no such room")
     finally:
         await lk.aclose()
@@ -212,7 +233,7 @@ async def open_room(body: NewRoom):
         raise HTTPException(400, f"no assistant for {body.owner!r}")
     pack = _pack(body.pack, personas[persona]["pack"])
     if MOCK:
-        return {"url": "/rooms/mock-room"}
+        return {"url": f"/rooms/mock-room?owner={body.owner}"}
     name = f"goose-{os.urandom(3).hex()}"
     lk = _lk()
     try:
@@ -222,7 +243,7 @@ async def open_room(body: NewRoom):
             metadata=json.dumps({"persona": body.owner, "pack": pack, "allowed": body.allowed})))
     finally:
         await lk.aclose()
-    return {"url": f"/rooms/{name}"}
+    return {"url": f"/rooms/{name}?owner={body.owner}"}
 
 
 @app.get("/rooms/{name}")
@@ -231,15 +252,20 @@ async def room_page(name: str):
 
 
 @app.post("/rooms/{name}/token")
-async def room_token(name: str):
+async def room_token(name: str, body: Join = Join()):
     """Only rooms opened from the page: no login here, so a `call-*` or `talk-*` room must not be joinable by name."""
     if MOCK:
         return {"url": "", "token": "mock"}
     if not name.startswith("goose-"):
         raise HTTPException(403, "this room cannot be joined from the browser")
-    who = f"guest-{os.urandom(2).hex()}"
+    if body.name and body.name not in [c["name"] for c in _book(body.owner)]:
+        raise HTTPException(400, "not in the contact book")
+    # The token reaches the browser, so it names the contact and the worker looks the number up. Participants cannot
+    # change their own attributes, so only this server can make someone a contact.
+    who = f"{(body.name or 'guest').split()[0].lower()}-{os.urandom(2).hex()}"
     jwt = api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]) \
-        .with_identity(who).with_name("Guest").with_grants(api.VideoGrants(room_join=True, room=name)).to_jwt()
+        .with_identity(who).with_name(body.name or "Guest").with_grants(api.VideoGrants(room_join=True, room=name)) \
+        .with_attributes({"goose.caller": body.name} if body.name else {}).to_jwt()
     return {"url": os.environ["LIVEKIT_URL"], "token": jwt}
 
 

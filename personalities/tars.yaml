@@ -1,5 +1,5 @@
 name: tars
-voice: a167e0f3-df7e-4d52-a9c3-f949145efdab  # Blake   # borrowed, pick a proper voice
+voice: 87286a8d-7ea7-4235-a41a-dd9fa6630feb  # Henry
 fish_voice: fa4c9eb3dccc4806b382b40d61c6b10a  # starter default
 style:
   register: literal, dry, deadpan

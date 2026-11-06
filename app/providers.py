@@ -3,12 +3,16 @@
 build_session(persona) maps config `kind` -> plugin constructors. `mock` kinds return None so a
 session can run text-only with the test LLM. Nothing here calls a network API at build time.
 """
-from livekit.agents import AgentSession, TurnHandlingOptions, inference
+from livekit.agents import APIConnectOptions, AgentSession, TurnHandlingOptions, inference
+from livekit.agents.voice.agent_session import SessionConnectOptions
 
 from proxy_core.config import load_config, load_env
 from proxy_core.session_config import turn_kwargs
 
 NOT_SET = object()
+# The SDK default gives up after about 4 s, and a 429 from Inference then closes the session before any audio.
+# A late greeting beats a dead call: this rides out about 20 s. A healthy call never reaches it.
+_RETRY = APIConnectOptions(max_retry=10, retry_interval=2.0)
 
 
 def _stt(c, cfg):
@@ -62,4 +66,5 @@ def build_session(persona_name: str, cfg: dict | None = None, voice: str | None 
         turn_handling=turn_handling(cfg),
         expressive=p["tts"].get("expressive", False),
         user_away_timeout=cfg["session"]["silence_nudges_s"][0],
+        conn_options=SessionConnectOptions(stt_conn_options=_RETRY, llm_conn_options=_RETRY, tts_conn_options=_RETRY),
     )

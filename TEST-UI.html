@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Goose UI test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#FFF8E7;--ink:#1A1423;--balloon:#FFD23F;--radio:#E63946;--sky:#4CC9F0;--mute:#5E5868}
+  @media (prefers-color-scheme: dark){:root{--paper:#1A1423;--ink:#FFF8E7;--mute:#B9B3C4}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 "Atkinson Hyperlegible",system-ui,sans-serif}
+  main{max-width:860px;margin:0 auto;padding:28px 18px 64px}
+  h1,h2{font-family:Bangers,Impact,sans-serif;font-weight:400;letter-spacing:.03em;line-height:1}
+  h1{font-size:clamp(40px,8vw,60px);margin:0 0 6px}
+  h2{font-size:32px;margin:38px 0 10px}
+  h3{font-size:17px;margin:20px 0 6px}
+  p{margin:0 0 10px;max-width:72ch}
+  .box{border:3px solid var(--ink);box-shadow:5px 5px 0 var(--ink);padding:14px 16px;margin:14px 0}
+  .warn{background:var(--balloon);color:#1A1423;border-color:#1A1423;box-shadow:5px 5px 0 #1A1423}
+  code{font-family:Consolas,monospace;font-size:.92em;overflow-wrap:anywhere}
+  pre{max-width:100%;margin:6px 0 12px;padding:10px 12px;border:2px solid var(--ink);overflow-x:auto}
+  pre code{font-size:14px}
+  ol.steps{list-style:none;margin:0;padding:0}
+  ol.steps li{display:grid;grid-template-columns:26px minmax(0,1fr);gap:8px;padding:10px 0;border-top:2px solid var(--ink)}
+  ol.steps input{width:20px;height:20px;margin:3px 0 0}
+  ol.steps .expect{color:var(--mute);display:block}
+  ol.steps .expect b{color:var(--ink)}
+  table{border-collapse:collapse;width:100%;margin:8px 0}
+  td,th{border:2px solid var(--ink);padding:6px 9px;text-align:left;vertical-align:top}
+  details{margin:12px 0}
+  summary{font-weight:700;cursor:pointer}
+  a{color:inherit}
+  #count{font-weight:700}
+</style>
+</head>
+<body>
+<main>
+<h1>Goose UI test</h1>
+<p>Pranav's run sheet. Do section 1, then the mock pass, then one real pass. Ticks stay in this browser. <span id="count"></span></p>
+
+<div class="box warn">
+  <b>Hold section 4.</b> LiveKit's credit quota is exhausted (429 MaxGatewayCredits), so Goose can't speak or listen right now. The mock pass in section 3 still works and costs nothing. Wait until you're told the fix is in, then run section 4 once, in order, with every other test stopped.
+</div>
+
+<h2>1. Blocked on you</h2>
+<p>Nothing below can be finished without you. The first two are what stands between the app and the demo.</p>
+<ol class="steps">
+  <li><input type="checkbox"><div><b>Add the phone number.</b> Put <code>GOOSE_PHONE_NUMBER=+1...</code> in the main folder's <code>.env</code> and restart uvicorn. It isn't set today, so the landing page shows <code>+1 (xxx) xxx-xxxx</code> and <code>/app</code> hides the number. Never commit it: the repo is public.
+    <span class="expect"><b>Done when:</b> the number shows on the landing page under Call Goose.</span></div></li>
+  <li><input type="checkbox"><div><b>Test a real mic.</b> Section 4 is the only place this gets proved. Claude's browser blocks mics, so every test so far used a silent fake one. Goose has never heard anyone through the web app.</div></li>
+  <li><input type="checkbox"><div><b>Run it on localhost only.</b> There is no login, so anyone who can reach the server can join a room as you or any contact. Keep uvicorn on its default address, and don't pass <code>--host 0.0.0.0</code> or tunnel it. Project your own laptop's screen.</div></li>
+</ol>
+
+<h2>2. Start it</h2>
+<p>All commands run in PowerShell from <code>E:\talk to me... Goose</code>. Check you're on the latest <code>main</code> first:</p>
+<pre><code>git pull</code></pre>
+<h3>Mock: no keys, no credits</h3>
+<pre><code>$env:GOOSE_MOCK=1; uv run uvicorn app.api:app --port 8000</code></pre>
+<h3>Real: one terminal each</h3>
+<pre><code>uv run python -m app.worker dev</code></pre>
+<pre><code>$env:GOOSE_PERSONA='maya'; uv run python -m app.worker dev</code></pre>
+<pre><code>Remove-Item Env:GOOSE_MOCK -ErrorAction SilentlyContinue; uv run uvicorn app.api:app --port 8000</code></pre>
+<p>Jesse for Skyler needs her own worker, for step 4.9:</p>
+<pre><code>$env:GOOSE_PERSONA='jesse'; uv run python -m app.worker dev</code></pre>
+<p>The Maya terminal is needed only for step 4.6 and for rooms opened for Rohan. Open everything in Chrome at <code>http://localhost:8000</code>. Browsers allow mics only on localhost or https, so a phone on your Wi-Fi can't use the mic.</p>
+
+<h2>3. Mock pass</h2>
+<p>Use the mock command. Fake data, no agent. Also try one view at phone width (Chrome dev tools, 375px).</p>
+<ol class="steps">
+  <li><input type="checkbox"><div><b>Open <a href="http://localhost:8000/">localhost:8000</a>.</b>
+    <span class="expect"><b>Expect:</b> landing page, six cards (Goose, Jesse, Cortana, Jarvis, Dobby, TARS), hero text "Can't pick up? Get Goose to take the call for you." The number shows +1 555 0100 in mock.</span></div></li>
+  <li><input type="checkbox"><div><b>Click each card.</b>
+    <span class="expect"><b>Expect:</b> the panel below changes its dials and sample lines, and "Which stand-in?" follows.</span></div></li>
+  <li><input type="checkbox"><div><b>Change "Who is the assistant for?" to Rohan.</b>
+    <span class="expect"><b>Expect:</b> the stand-in jumps to Jarvis. Back to Pranav and it jumps to Goose.</span></div></li>
+  <li><input type="checkbox"><div><b>Press Start the call.</b>
+    <span class="expect"><b>Expect:</b> room page with a large "Waiting for a yes" bar, then fake people, floor, agenda, slots and task log. "Join as" lists Unknown caller plus the contacts, names only.</span></div></li>
+  <li><input type="checkbox"><div><b>Join as Sam Okafor. Stand back from the screen.</b>
+    <span class="expect"><b>Expect:</b> "Sam Okafor" and a "Friends tier" badge in big type, a scripted transcript with each speaker named, and a "… is talking" line that follows it. All of it should read from the back of a room.</span></div></li>
+  <li><input type="checkbox"><div><b>Press Leave.</b>
+    <span class="expect"><b>Expect:</b> "Call ended." with "See this call's record", which opens that call in the app.</span></div></li>
+  <li><input type="checkbox"><div><b>Open <a href="http://localhost:8000/rooms/mock-offline">/rooms/mock-offline</a> and wait 5 seconds.</b>
+    <span class="expect"><b>Expect:</b> a big red "Agent offline" with the start command.</span></div></li>
+  <li><input type="checkbox"><div><b>Click Pranav's app, top right.</b>
+    <span class="expect"><b>Expect:</b> "Hi Pranav, how are you?", the egg, personality chips, the red "Goose is on a call right now" banner, and call history.</span></div></li>
+  <li><input type="checkbox"><div><b>Click the banner.</b>
+    <span class="expect"><b>Expect:</b> Live call panel. Home returns.</span></div></li>
+  <li><input type="checkbox"><div><b>Open a call in the history.</b>
+    <span class="expect"><b>Expect:</b> summary, actions and a two-sided transcript. A saved contact's number shows only its last 4 digits.</span></div></li>
+  <li><input type="checkbox"><div><b>Open Contacts, then My data.</b>
+    <span class="expect"><b>Expect:</b> contacts with tier badges and last-4 numbers. My data lists Gmail, Slack, Calendar, Notes and Tasks, each row with a tier badge.</span></div></li>
+  <li><input type="checkbox"><div><b>Press the egg, then End talk.</b>
+    <span class="expect"><b>Expect:</b> a scripted talk with changing "Goose is talking" and "You're talking", then back to Home.</span></div></li>
+</ol>
+
+<h2>4. Real pass, once</h2>
+<p>Use the real commands. Have your mic ready and allow it when Chrome asks. Open each room from <a href="http://localhost:8000/#room">Open a room</a>; it closes after 5 empty minutes.</p>
+<ol class="steps">
+  <li><input type="checkbox"><div><b>4.1 Open a room for Pranav with Goose. Wait 20 seconds, join as Muhammad Rahman, say something.</b>
+    <span class="expect"><b>Expect:</b> "Hi Muhammad, Goose here. What can I do for you?", with no "who's calling". You hear Goose. Your name and Friends tier show large, and your own words appear in the transcript. <b>New proof:</b> Goose answers what you actually said. Press Leave and follow the record link.</span></div></li>
+  <li><input type="checkbox"><div><b>4.2 New room, join as Unknown caller.</b>
+    <span class="expect"><b>Expect:</b> "Hi, this is Goose, Pranav's assistant. Who's calling?" Say a name: the screen shows it as "not verified" at Public tier. Leave.</span></div></li>
+  <li><input type="checkbox"><div><b>4.3 New room, join as Sam Okafor. Ask "What's going on with Mum's flight?"</b>
+    <span class="expect"><b>Expect:</b> Goose won't share it. Sam is friends tier and that email is family tier. <b>Not tested yet.</b></span></div></li>
+  <li><input type="checkbox"><div><b>4.4 New room, join as Rohan Mishra. Ask the same thing.</b>
+    <span class="expect"><b>Expect:</b> Goose can talk about it. Same question, different tier. This is the privacy demo. <b>Not tested yet.</b></span></div></li>
+  <li><input type="checkbox"><div><b>4.5 New room with Jesse selected, join as yourself (the "(owner)" entry).</b>
+    <span class="expect"><b>Expect:</b> an owner briefing ("Hi Pranav. N calls so far..."), not "who's calling". Listen for Jesse's voice. Your real local contact wasn't used in my tests, so check the name in the picker too.</span></div></li>
+  <li><input type="checkbox"><div><b>4.6 New room, "Assistants allowed to join" = maya, join as Sam Okafor. Ask Goose to check with Rohan's assistant.</b>
+    <span class="expect"><b>Expect:</b> Goose confirms, you say yes, Maya joins and answers. Needs the Maya terminal. A spoken summon has never been tested through the web app.</span></div></li>
+  <li><input type="checkbox"><div><b>4.7 Same, with the allowed box empty.</b>
+    <span class="expect"><b>Expect:</b> Goose says Maya isn't allowed into the room, and no Maya appears. Only a unit test has proved this.</span></div></li>
+  <li><input type="checkbox"><div><b>4.8 In <a href="http://localhost:8000/app">/app</a>, pick Jarvis and press the egg. Talk, then End talk.</b>
+    <span class="expect"><b>Expect:</b> your words and Goose's appear as bubbles, the state line follows who is talking, Jarvis's voice, and End returns Home. The talk then appears in the history as "You and Goose".</span></div></li>
+  <li><input type="checkbox"><div><b>4.9 Open a room for Skyler. The stand-in jumps to Jesse. Join as Marie Schrader.</b>
+    <span class="expect"><b>Expect:</b> the picker lists Skyler's contacts, not yours, and Jesse greets Marie by name at Family tier. Needs the Jesse terminal. <b>Not tested with an agent yet.</b></span></div></li>
+  <li><input type="checkbox"><div><b>4.10 Call the number from your phone with <code>/app</code> open.</b>
+    <span class="expect"><b>Expect:</b> Goose answers, and the banner appears within about 4 seconds and opens the live panel. After you hang up, the call is in the history with its transcript. Needs step 1.1 and the dispatch rule pointing at <code>goose</code>. <b>Never tested from the web app.</b></span></div></li>
+</ol>
+
+<h2>5. If something breaks</h2>
+<table>
+  <tr><th>You see</th><th>Do this</th></tr>
+  <tr><td>"Agent offline"</td><td>The worker isn't running. Run the command shown and open a new room; a room opened while it was off stays empty. Rooms for Rohan need the Maya terminal.</td></tr>
+  <tr><td>Goose says nothing, and "Goose is listening" stays up</td><td>Look in the worker terminal for <code>429 Too Many Requests</code>. That's the LiveKit quota, not a code fault, and waiting a minute won't clear it. Check credits at cloud.livekit.io.</td></tr>
+  <tr><td>"Can't reach the room"</td><td>The room has closed or never existed. Open a new one.</td></tr>
+  <tr><td>"Backend not running: POST /rooms"</td><td>uvicorn is down or crashed. Check its terminal. An owner or personality the server doesn't know also shows this.</td></tr>
+  <tr><td>"Allow the microphone"</td><td>Click the icon at the left of Chrome's address bar, allow the mic, join again.</td></tr>
+  <tr><td>Worker crashes on <code>noise_cancellation</code></td><td>Run <code>uv sync --extra nc</code>. The main folder already has it.</td></tr>
+  <tr><td>A code change did nothing</td><td>Restart the worker and uvicorn. Neither reloads on its own here.</td></tr>
+  <tr><td>Greeting ignores Join as</td><td>Join within 5 minutes of opening the room, and check the room is for Pranav. Only his contacts are known.</td></tr>
+</table>
+
+<details>
+  <summary>What Claude has already proved, and what it hasn't</summary>
+  <h3>Proved with a real agent and a silent fake mic</h3>
+  <p>Form to room to agent, Join and Leave, Muhammad greeted by name after a 15 second wait, Unknown asked, owner briefing using a fake owner contact, TARS and Jarvis packs recorded on real calls, no numbers in tokens or on the page, the empty, offline and error states, the stage view's caller, tier and record link, and Skyler in the form with Jesse as her default.</p>
+  <h3>Not proved</h3>
+  <p>Anything that needs a real voice: Goose hearing speech, your side of the live transcript, tier refusals out loud, and a spoken summon. Also the room page's live transcript with a real agent (the one check hit the 429), audio you can actually hear, phone calls reaching the web app, your real owner contact, and a Skyler room with an agent.</p>
+</details>
+</main>
+<script>
+const boxes = [...document.querySelectorAll('input[type=checkbox]')];
+const show = () => { document.getElementById('count').textContent = `${boxes.filter(b => b.checked).length} of ${boxes.length} done.`; };
+let saved = [];
+try { saved = JSON.parse(localStorage.getItem('goose-test-ui') || '[]'); } catch {}
+boxes.forEach((b, i) => {
+  b.checked = !!saved[i];
+  b.onchange = () => { show(); try { localStorage.setItem('goose-test-ui', JSON.stringify(boxes.map(x => x.checked))); } catch {} };
+});
+show();
+</script>
+</body>
+</html>

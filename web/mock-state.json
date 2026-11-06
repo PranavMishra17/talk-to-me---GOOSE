@@ -1,14 +1,14 @@
 {
   "room": "mock-room",
   "participants": [
-    {"identity": "sam", "kind": "human", "agent_state": null},
-    {"identity": "agent-ash", "kind": "agent", "agent_state": "speaking"},
-    {"identity": "agent-maya", "kind": "agent", "agent_state": "listening"}
+    {"identity": "sam", "kind": "human", "persona": null, "agent_state": null},
+    {"identity": "agent-seed-0001", "kind": "agent", "persona": "goose", "agent_state": "listening"},
+    {"identity": "agent-maya", "kind": "agent", "persona": "maya", "agent_state": "listening"}
   ],
-  "floor": {"holder": "ash", "addressed_to": "maya"},
+  "floor": {"holder": "goose", "addressed_to": "maya"},
   "agents": {
-    "ash": {
-      "persona": "ash",
+    "goose": {
+      "persona": "goose",
       "owner": "pranav",
       "caller_tier": "friends",
       "focus": "learn_ask",
