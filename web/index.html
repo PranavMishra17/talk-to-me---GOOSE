@@ -34,16 +34,19 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 let room = new URLSearchParams(location.search).get('room');
+let follow = !room;   // no ?room= and no New call: show the newest phone call
 
 function agentPanel(a) {
   return `<section><h2>${esc(a.persona)} (for ${esc(a.owner)}, caller: ${esc(a.caller_tier)})</h2>
     <ul>${a.agenda.map(i => `<li class="${i.done ? 'done' : ''}">${esc(i.goal)}${i.id === a.focus ? ' &larr; now' : ''}</li>`).join('')}</ul>
     <p>Known: ${esc(Object.entries(a.slots).map(([k, v]) => `${k}=${v}`).join(', ') || 'nothing yet')}</p>
     ${a.pending_confirm ? `<p>Waiting for a yes: ${esc(a.pending_confirm)}</p>` : ''}
-    <ul>${a.log.map(l => `<li>${esc(l)}</li>`).join('')}</ul></section>`;
+    <ul>${a.log.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+    ${a.summary ? `<p><b>Summary:</b> ${esc(a.summary)}</p>` : ''}</section>`;
 }
 
 async function poll() {
+  if (follow) room = (await (await fetch('/api/rooms')).json()).latest || room;
   if (!room) return;
   const r = await fetch(`/api/rooms/${room}`);
   if (!r.ok) { $('status').textContent = `Room ${room}: ${r.status}`; return; }
@@ -55,6 +58,7 @@ async function poll() {
 }
 
 $('start').onclick = async () => {
+  follow = false;
   room = (await (await fetch('/api/rooms', {method: 'POST', headers: {'content-type': 'application/json'}, body: '{}'})).json()).room;
   $('join').disabled = false;
   poll();

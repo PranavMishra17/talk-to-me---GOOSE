@@ -11,8 +11,8 @@ from pathlib import Path
 from livekit import api, rtc
 from livekit.agents import Agent, FlushSentinel, RunContext, StopResponse, function_tool, get_job_context
 
-from proxy_core import floor, policy
-from proxy_core.agenda import Agenda
+from proxy_core import floor, policy, slots
+from proxy_core.agenda import Agenda, is_bye, is_yes
 from proxy_core.config import load_config
 from proxy_core.decider import decide
 from proxy_core.echo import EchoGuard
@@ -36,7 +36,7 @@ class GooseAgent(Agent):
         self.pack = load_pack(p["pack"])
         self.hostile = 0
         self._fillers = 0
-        self._focus = None
+        self._block, self._reading = None, False
         self.log: list[str] = []          # task log; the web panel reads it through goose.state
         self.summary, self._published = "", None
         self.ladder, self._quiet = SilenceLadder(persona, self.cfg["session"]["silence_nudges_s"]), None
@@ -105,15 +105,19 @@ class GooseAgent(Agent):
                 asyncio.ensure_future(self._finish(self.session.say(farewell(self.pack, self._fillers))))
                 raise StopResponse()
             notes.append(["Respond warmly and redirect.", "State one boundary sentence."][self.hostile - 1])
+        changed = self._note({**slots.extract(text), **({"topic": text} if d.new_ask and "topic" not in self.agenda.slots else {})})
+        if self._read_back_turn(text, changed, d.done or is_bye(text)):
+            raise StopResponse()
         self.agenda.tick()
+        if self.agenda.should_force_advance():
+            self.agenda.force_advance()
         # Editing turn_ctx every turn invalidates preemptive generation (the "preemptive generation invalidated"
         # warning in the console log), so only do it when there is something to say.
         if notes:
             turn_ctx.add_message(role="system", content="\n".join(notes))
-        f = self.agenda.focus()
-        fid = f.id if f else None
-        if fid != self._focus:     # rewriting instructions each turn also costs latency; only on a real change
-            self._focus = fid
+        block = self.agenda.render_prompt_block()
+        if block != self._block:   # rewriting instructions each turn also costs latency; only on a real change
+            self._block = block
             await self.update_instructions(self._prompt())
 
     # Prompts cannot guarantee either of these: fast models call tools with no text, and several hang up silently.
@@ -164,12 +168,15 @@ class GooseAgent(Agent):
     async def take_message(self, from_name: str, message: str) -> str:
         """Record a message for the owner."""
         self.log.append(f"message from {from_name}: {message}")
+        s = self.agenda.slots
+        self._note({"name": s.get("name") or from_name, "topic": s.get("topic") or message, "details": message})
         return "saved"
 
     @function_tool
     async def propose_slot(self, when: str) -> str:
         """Propose a time to the caller."""
         self.log.append(f"slot {when}")
+        self._note(slots.extract(when))
         return "proposed"
 
     @function_tool
@@ -181,6 +188,8 @@ class GooseAgent(Agent):
     @function_tool
     async def end_call(self, ctx: RunContext, summary: str) -> None:
         """End the call. Says the goodbye for you."""
+        if self._owes_read_back():
+            return self._read_back()         # the caller's yes ends the call, in _read_back_turn
         self.log.append(f"end: {summary}")
         await ctx.wait_for_playout()         # the farewell from llm_node finishes first
         await self._hang_up()                # returns None on purpose: any output makes the model speak again
@@ -190,6 +199,8 @@ class GooseAgent(Agent):
         await self._hang_up()
 
     async def _hang_up(self):
+        ended = next((e[5:] for e in reversed(self.log) if e.startswith("end: ")), "call ended")
+        self.summary = slots.summary(self.agenda.slots, self.owner.title(), ended)
         self.publish()                       # the last state is what the panel keeps once the room closes
         if self.room:
             job = get_job_context()
@@ -204,12 +215,43 @@ class GooseAgent(Agent):
         self.log.append(f"report[{channel}]: {text}")
         return "logged"
 
+    def _note(self, found):
+        """S3-03: slots come from regex and tool arguments, never from an extra model call. True = a value changed."""
+        before = dict(self.agenda.slots)
+        self.agenda.update_slots(slots.corrected(before, found))
+        self.agenda.mark_done()              # a corrected ask stays closed, so the focus lands on read_back at once
+        return any(k in before and before[k] != v for k, v in self.agenda.slots.items())
+
+    def _owes_read_back(self):
+        return bool(self.agenda.slots.get("details")) and not self.agenda.slots.get("confirmed")
+
+    def _read_back(self):
+        """Beat 6. Code speaks it: a model can skip it or repeat a value the caller just corrected."""
+        self._reading = True
+        self.session.say(slots.read_back(self.agenda.slots, self.owner.title()))
+        self.publish()
+
+    def _read_back_turn(self, text, changed, leaving):
+        """True = code answered this turn. A yes ends the call; a correction reads back again; anything else goes to the model."""
+        if self._reading and not changed and is_yes(text):
+            self.agenda.update_slots({"confirmed": True, "goodbye": True})
+            self._reading = False
+            self.log.append("end: caller confirmed")
+            asyncio.ensure_future(self._finish(self.session.say(farewell(self.pack, self._fillers))))
+            return True
+        if self._owes_read_back() and (leaving or (self._reading and changed)):
+            self._read_back()
+            return True
+        self._reading = False
+        return False
+
     def state(self):
         """One agent entry of web/mock-state.json."""
         f = self.agenda.focus()
         return {"persona": self.persona, "owner": self.owner, "caller_tier": self.caller_tier, "focus": f.id if f else None,
                 "agenda": [{"id": i.id, "goal": i.goal, "done": i.done} for i in self.agenda.items], "slots": self.agenda.slots,
-                "pending_confirm": next(iter(self.agenda.pending or ()), None), "log": self.log[-20:], "summary": self.summary}
+                "pending_confirm": "read_back" if self._reading else next(iter(self.agenda.pending or ()), None),
+                "log": self.log[-20:], "summary": self.summary}
 
     def publish(self):
         """S6-05: goose.state, only when it changed."""

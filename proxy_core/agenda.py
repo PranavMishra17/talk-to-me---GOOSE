@@ -45,7 +45,8 @@ def mock_planner(task_text: str) -> list[AgendaItem]:
     return [
         AgendaItem("identify", "Learn who is calling", ["name"]),
         AgendaItem("learn_ask", f"Understand the ask: {task_text}", ["topic", "details"]),
-        AgendaItem("read_back", "Read the details back and get a yes", ["confirmed"], done_when=lambda s: s.get("confirmed") is True),
+        AgendaItem("read_back", "Read the details back and get a yes", ["name", "details", "day", "time", "confirmed"],
+                   done_when=lambda s: s.get("confirmed") is True),
         AgendaItem("close", "Wrap up and say goodbye", ["goodbye"]),
     ]
 
@@ -65,7 +66,6 @@ class Agenda:
             return None
         if is_yes(caller_text):
             action, self.pending = self.pending, None
-            self.update_slots({"confirmed": True})   # closes read_back through its done_when
             return action
         if is_no(caller_text):
             self.pending = None
@@ -84,6 +84,8 @@ class Agenda:
                 for it in (i for i in self.items if k in i.needs and i.done):
                     it.done, it.turns_used = False, 0
                     reopened.add(it.id)
+                    if "confirmed" in it.needs:   # the old yes was for the old value
+                        self.slots.pop("confirmed", None)
             self.slots[k] = v
         self.mark_done(skip=reopened)
 

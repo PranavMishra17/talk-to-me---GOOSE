@@ -39,6 +39,15 @@ def test_contradiction_undoes_dependents():
     assert done(a) == {"identify"} and a.focus().id == "learn_ask"
 
 
+def test_contradiction_after_yes_reopens_read_back():
+    a = make()
+    a.update_slots({"name": "Sam", "topic": "dinner", "details": "Saturday", "day": "Saturday", "confirmed": True})
+    assert a.focus().id == "close"
+    a.update_slots({"day": "Sunday"})
+    a.mark_done()
+    assert a.focus().id == "read_back" and "confirmed" not in a.slots
+
+
 def test_item_and_call_limits():
     a = Agenda(max_turns_per_call=5)
     a.plan("x")

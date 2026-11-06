@@ -19,6 +19,7 @@ MOCK = os.environ.get("GOOSE_MOCK") == "1"
 MOCK_FILE = ROOT / "web" / "mock-state.json"
 AGENT_KIND = 4   # ParticipantInfo.Kind.AGENT
 app = FastAPI(title="Goose")
+LAST: dict[str, dict] = {}   # the panel keeps a finished call's summary after LiveKit closes the room
 
 
 class NewRoom(BaseModel):
@@ -66,6 +67,19 @@ async def create_room(body: NewRoom):
     return {"room": name}
 
 
+@app.get("/api/rooms")
+async def latest_call():
+    """The newest phone room, so the panel can follow a call it did not create."""
+    if MOCK:
+        return {"latest": None}
+    lk = _lk()
+    try:
+        rooms = [r for r in (await lk.room.list_rooms(api.ListRoomsRequest())).rooms if r.name.startswith("call-")]
+    finally:
+        await lk.aclose()
+    return {"latest": max(rooms, key=lambda r: r.creation_time).name if rooms else None}
+
+
 @app.get("/api/rooms/{name}")
 async def room_state(name: str):
     if MOCK:
@@ -74,11 +88,16 @@ async def room_state(name: str):
     try:
         rooms = (await lk.room.list_rooms(api.ListRoomsRequest(names=[name]))).rooms
         if not rooms:
+            if name in LAST:
+                return LAST[name]
             raise HTTPException(404, "no such room")
         people = (await lk.room.list_participants(api.ListParticipantsRequest(room=name))).participants
     finally:
         await lk.aclose()
-    return live_state(name, rooms[0].metadata, people)
+    state = live_state(name, rooms[0].metadata, people)
+    state["agents"] = {**LAST.get(name, {}).get("agents", {}), **state["agents"]}   # an agent that left keeps its panel
+    LAST[name] = state
+    return state
 
 
 @app.post("/api/rooms/{name}/token")
