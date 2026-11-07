@@ -4,7 +4,7 @@
 providers:
   # The one switch. true runs stt_own, llm_own and tts_own instead of stt, llm and tts, for when LiveKit Inference answers 429.
   # Needs OPENROUTER_API_KEY and CARTESIA_API_KEY in .env. Proved in a real room on 6 Nov: first audio 0.84 to 2.04 s.
-  own_keys: false
+  own_keys: true
   stt_own: {kind: cartesia, model: ink-2, language: en}
   stt:
     kind: livekit_inference
