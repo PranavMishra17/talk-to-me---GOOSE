@@ -24,8 +24,8 @@ cases:
   - id: stranger-free-monday
     caller: "+15559999999"
     say: "Is he free next Monday afternoon?"
-    tool: get_calendar
-    expect: Checks the diary before answering.
+    tool: [none, get_calendar]
+    expect: Answers from the diary in WHAT YOU KNOW, or checks it; busy blocks only, no details.
 
   - id: sam-free-tomorrow-evening
     caller: "+15550100222"
