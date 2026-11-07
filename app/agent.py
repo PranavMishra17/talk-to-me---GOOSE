@@ -338,7 +338,7 @@ class GooseAgent(DataTools, Agent):
                 line = farewell(self.pack, self._fillers)
             elif gated:
                 line = confirm_line(self.pack, gated[0], self.owner.title())
-            elif names - {"report_back", "hang_up"} and not words and not (delta and delta.content) and self._filled != self._turn_id:
+            elif names - {"report_back", "hang_up"} - CONFIRM_TOOLS and not words and not (delta and delta.content) and self._filled != self._turn_id:
                 self._filled = self._turn_id     # a second lookup in the same turn stays silent
                 line = tool_filler(self.pack, self._fillers + 1)
             else:
@@ -482,6 +482,7 @@ class GooseAgent(DataTools, Agent):
             ask = {f.id: True} if f and f.id.startswith("ask_") else {}
             self._note({"name": s.get("name") or args["from_name"], "topic": s.get("topic") or args["message"],
                         "details": slots.merged(s["details"], args["message"]) if s.get("details") else args["message"], **ask})
+            self.agenda.update_slots({"confirmed": True})   # the gate already got a yes: asking again at goodbye reads as a bug
             return "message saved"
         if tool == "propose_slot":
             self._act(f"slot {args['when']}")
