@@ -58,7 +58,7 @@ def services() -> list[dict]:
     workers = [{"name": p, "cmd": [sys.executable, "-m", "app.worker", "dev"], "env": {**env, "GOOSE_PERSONA": p},
                 "ready": "registered worker"} for p in load_config()["personas"]]
     web = {"name": "web", "cmd": [sys.executable, "-m", "uvicorn", "app.api:app", "--port", PORT], "env": env,
-           "ready": "Uvicorn running on", "url": f"http://localhost:{PORT}/demo"}
+           "ready": "Uvicorn running on", "url": f"http://localhost:{PORT}"}
     return [*workers, web]
 
 
