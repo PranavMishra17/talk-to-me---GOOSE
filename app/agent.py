@@ -112,6 +112,10 @@ class GooseAgent(DataTools, Agent):
         else:
             self.caller_tier = policy.resolve_tier(self.owner, number)
             self._known = f"\n\n# WHO IS CALLING\n{self._not_owner()}"
+        # Every caller's prompt carries the owner's profile and next week's diary at their tier, so the common asks
+        # ("is he free Monday?") need no tool round trip. A summoned agent answers from get_facts only.
+        self._brief = "" if self.request else vault.briefing(
+            self.owner, self.caller_tier, self.contact.get("topics", ["personal"]) if self.contact else None)
         if self.contact:
             name = self.contact["name"]
             start = time.perf_counter()
@@ -132,7 +136,8 @@ class GooseAgent(DataTools, Agent):
         today = f"{now:%A}, {now:%B} {now.day}, {now.year}, {spoken_time(now.hour, now.minute)}"
         return PROMPT.format(now=today, assistant=self.persona.title(), owner=self.owner.title(), caller_tier=self.caller_tier,
                              style="\n".join([render_style(self.pack), *self.pack.get("rules", [])]), agenda=self.agenda.render_prompt_block()) + \
-            ("\n\n# OTHER ASSISTANTS\n" + ", ".join(peers) + "." + network if peers else "") + self._known
+            ("\n\n# OTHER ASSISTANTS\n" + ", ".join(peers) + "." + network if peers else "") + \
+            (f"\n\n# WHAT YOU KNOW ABOUT {self.owner.upper()}\n{self._brief}" if self._brief else "") + self._known
 
     def _peers(self):
         """Personas on this one's network. No network, no peers: their owners do not exist on this call."""
