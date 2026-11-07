@@ -103,3 +103,21 @@ uv run python scripts/harness.py --caller +15550100222 --say "Hi, it's Sam."
 ```
 
 The harness runs the real agent in a real room with a scripted caller and prints latency per module. It spends a few cents, and synthetic speech can't judge turn-taking, so test that by ear. Run `uv run python tests/bench.py` for the text scenarios.
+
+### Tuning the prompt with DSPy
+
+`scripts/optimize_prompt.py` scores the voice-style part of `app/prompts/system.txt` (voice style, dates and numbers, honesty) on the caller turns in `scripts/prompt_cases.yaml`, and can rewrite it with DSPy's GEPA optimizer. Privacy, floor rules and the agenda are never tuned. It uses LiveKit Inference, so it needs only the LiveKit keys, and it spends credits.
+
+```bash
+uv run --extra optimize python scripts/optimize_prompt.py --eval-only
+```
+
+```bash
+uv run --extra optimize python scripts/optimize_prompt.py --budget light
+```
+
+The second command writes `runtime/prompt_opt/report.md` (scores before and after, per case) and `candidate.txt`. Nothing changes until you apply it, and you should run the bench and a real call after:
+
+```bash
+uv run --extra optimize python scripts/optimize_prompt.py --apply runtime/prompt_opt/candidate.txt
+```

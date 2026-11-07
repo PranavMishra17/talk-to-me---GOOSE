@@ -19,6 +19,9 @@ dependencies = [
 [project.optional-dependencies]
 # Cloud-only; BVC noise cancellation. Skipped in tests.
 nc = ["livekit-plugins-noise-cancellation"]
+optimize = [
+    "dspy>=3.4.1",
+]
 
 [dependency-groups]
 dev = ["pytest", "pytest-asyncio"]
