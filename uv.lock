@@ -862,7 +862,7 @@ wheels = [
 ]
 
 [[package]]
-name = "goose-lab"
+name = "goose"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
@@ -871,15 +871,11 @@ dependencies = [
     { name = "livekit-agents" },
     { name = "livekit-api" },
     { name = "livekit-plugins-cartesia" },
+    { name = "livekit-plugins-noise-cancellation" },
     { name = "livekit-plugins-openai" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-nc = [
-    { name = "livekit-plugins-noise-cancellation" },
 ]
 
 [package.dev-dependencies]
@@ -895,13 +891,12 @@ requires-dist = [
     { name = "livekit-agents", specifier = ">=1.8,<1.9" },
     { name = "livekit-api" },
     { name = "livekit-plugins-cartesia", specifier = ">=1.8,<1.9" },
-    { name = "livekit-plugins-noise-cancellation", marker = "extra == 'nc'" },
+    { name = "livekit-plugins-noise-cancellation" },
     { name = "livekit-plugins-openai", specifier = ">=1.8,<1.9" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "uvicorn" },
 ]
-provides-extras = ["nc"]
 
 [package.metadata.requires-dev]
 dev = [

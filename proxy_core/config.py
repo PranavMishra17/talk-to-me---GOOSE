@@ -37,6 +37,15 @@ def load_env() -> None:
     load_dotenv(os.environ.get("GOOSE_ENV") or ROOT / ".env")   # worktrees point at the one real .env
 
 
+def require_livekit() -> None:
+    """Stop with instructions, not a traceback, when the keys a real session needs are missing."""
+    load_env()
+    missing = [k for k in ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET") if not os.environ.get(k)]
+    if missing:
+        raise SystemExit(f"Missing {', '.join(missing)}. Copy .env.sample to .env and fill it in: see Keys in README.md.\n"
+                         "To look around without keys: set GOOSE_MOCK=1 and run uv run uvicorn app.api:app --port 8000")
+
+
 def load_config(path: str | Path = ROOT / "config.yaml") -> dict:
     cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     p = cfg.get("providers", {})

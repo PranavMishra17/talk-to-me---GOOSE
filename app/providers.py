@@ -1,4 +1,4 @@
-"""LiveKit-touching: REWRITE against the starter kit tomorrow (starter's own session factory wins).
+"""Maps config.yaml kinds to SDK constructors. Nothing here calls the network at build time.
 
 build_session(persona) maps config `kind` -> plugin constructors. `mock` kinds return None so a
 session can run text-only with the test LLM. Nothing here calls a network API at build time.

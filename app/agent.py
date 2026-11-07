@@ -1,4 +1,4 @@
-"""LiveKit-touching: REWRITE against the starter kit tomorrow (keep the three hook bodies, call proxy_core).
+"""The live agent: tools, hooks and what code speaks. Decisions live in proxy_core; this file wires them to the SDK.
 
 Thin Agent subclass. All decisions live in proxy_core; this file only wires them to SDK hooks and tools.
 Tool bodies are stubs with no side effects beyond a log list: bench uses mock_tools anyway.
