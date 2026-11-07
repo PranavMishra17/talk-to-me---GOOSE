@@ -25,6 +25,12 @@ def agent_name(persona: str) -> str:
     return persona + os.environ.get("GOOSE_AGENT_TAG", "")
 
 
+def data_root() -> Path:
+    """Everything written at runtime. A tagged test run gets a folder of its own, so it never reaches the real history."""
+    root = Path(os.environ.get("GOOSE_DATA_DIR") or ROOT / "runtime")
+    return root / "test" if os.environ.get("GOOSE_AGENT_TAG") else root
+
+
 def load_env() -> None:
     """Load ROOT/.env into os.environ. Values are never printed or logged."""
     from dotenv import load_dotenv

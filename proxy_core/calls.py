@@ -1,34 +1,39 @@
 """Call records: one JSON file per call. Seeds are committed in data/calls; live ones land in GOOSE_DATA_DIR/calls.
-Shape, which the web app depends on: {id, started_at, ended_at, kind, number, contact, persona, pack, summary,
-outcome, actions, transcript}. Pure: no livekit, and no model, so a record cannot fail at hang-up.
+Shape, which the web app depends on: {id, started_at, ended_at, kind, number, contact, persona, owner, pack, summary,
+outcome, hangup, actions, transcript}. Seeds have no owner or hangup: they are Pranav's. Pure: no livekit, and no model, so a record cannot fail at hang-up.
 """
 import json
-import os
+import re
 from pathlib import Path
 
-from proxy_core.config import ROOT
+from proxy_core.config import ROOT, data_root
 from proxy_core.slots import _message
 
 SEED = ROOT / "data" / "calls"
+CLEARED = "cleared"           # a file under the data root: the seeds stay out of the history
+DEFAULT_OWNER = "pranav"
 OUTCOMES = ("resolved", "needs_you", "info")
 _BAD_ENDS = ("hostile caller", "caller went quiet")
 _CODE_ENDS = (*_BAD_ENDS, "caller said goodbye", "caller confirmed")
 
 
 def runtime_dir() -> Path:
-    return Path(os.environ.get("GOOSE_DATA_DIR") or ROOT / "runtime") / "calls"
+    return data_root() / "calls"
 
 
-def list_calls() -> list[dict]:
-    """Newest first. A runtime file replaces the seed with the same id, which is how mark_done survives."""
+def list_calls(owner: str | None = None) -> list[dict]:
+    """Newest first, one owner's if named. A runtime file replaces the seed with the same id, which is how mark_done
+    survives. scripts/stage.py clear hides the seeds."""
     found = {}
-    for path in [*sorted(SEED.glob("*.json")), *sorted(runtime_dir().glob("*.json"))]:
+    seeds = [] if (data_root() / CLEARED).exists() else sorted(SEED.glob("*.json"))
+    for path in [*seeds, *sorted(runtime_dir().glob("*.json"))]:
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
             found[record["id"]] = record
         except (ValueError, KeyError, OSError):      # one bad file must not hide the rest
             continue
-    return sorted(found.values(), key=lambda c: c["started_at"], reverse=True)
+    mine = [c for c in found.values() if not owner or c.get("owner", DEFAULT_OWNER) == owner]
+    return sorted(mine, key=lambda c: c["started_at"], reverse=True)
 
 
 def get_call(call_id: str) -> dict | None:
@@ -67,40 +72,57 @@ def outcome(who: str, log: list[str], slots: dict, turns: list[dict]) -> tuple[s
     actions = []
     for entry in log:
         if entry.startswith("message from "):
-            actions.append(f"Reply to {first}: {entry.split(': ', 1)[1]}")
+            actions.append(f"Reply to {first}")
         elif entry.startswith("slot "):
             actions.append(f"Confirm {entry[5:]} with {first}")
         elif entry.startswith("permission? "):
             actions.append(f"Decide if {first} may know: {entry[12:]}")
     ended = next((e[5:] for e in reversed(log) if e.startswith("end: ")), "")
     said = _message(slots) if slots.get("details") else next((e.split(": ", 1)[1] for e in log if e.startswith("message from ")), "")
-    if said:
-        summary = f"{first} left a message: {said.rstrip(' .?!')}."
+    if ended.startswith("Ended by "):            # the agent hung up on them: that is the headline in the call history
+        summary = f"{ended}."
+    elif said:
+        summary = f"{first} left you a message."  # never the words themselves: this gets spoken; app/recap.py improves it
     elif ended and ended not in _CODE_ENDS:      # end_call's summary, from the model that heard the whole call
         summary = ended
     else:
-        summary = f"{first} said: {max(heard, key=len)}" if heard else f"{first} hung up without a word."
-    status = "needs_you" if actions else "info" if not heard or not ended or ended in _BAD_ENDS else "resolved"
+        summary = f"{first} called." if heard else f"{first} hung up without a word."
+    status = "needs_you" if actions else "info" if not heard or not ended or ended in _BAD_ENDS or ended.startswith("Ended by ") else "resolved"
     return summary, status, [{"text": a, "done": False} for a in actions]
 
 
+def human_summary(text: str, heard: list[str]) -> str | None:
+    """A model's line, kept only if it is one short line of its own: six words in a row from the caller is reading out."""
+    text = " ".join(text.split()).strip('"')
+    said = " ".join(heard).lower()
+    words = text.lower().split()
+    if not text or len(text) > 200 or any(" ".join(words[i:i + 6]) in said for i in range(len(words) - 5)):
+        return None
+    return text
+
+
+def to_owner(text: str, owner: str) -> str:
+    """A record says "Pranav's approval is the blocker"; said to Pranav that is "your approval"."""
+    return re.sub(rf"\b{owner}\b", "you", re.sub(rf"\b{owner}'s\b", "your", text))
+
+
+def offer(records: list[dict]) -> str:
+    """Said after the hello: what is waiting, without the detail yet."""
+    waiting = sum(any(not a["done"] for a in c["actions"]) for c in records if c["kind"] == "phone")
+    if not waiting:
+        return "Nothing needs you right now."
+    return "One thing while you were out, want it?" if waiting == 1 else "Couple of things while you were out, want the rundown?"
+
+
 def brief(records: list[dict], owner: str) -> str:
-    """What the owner hears on opening the app. From records only, so it cannot invent a call."""
+    """What the owner hears first: the newest open item, then the offer of the rest. From records only."""
     phone = [c for c in records if c["kind"] == "phone"]
     if not phone:
-        return f"Hi {owner}. No calls yet."
-    words = [f"Hi {owner}. {len(phone)} call{'s' * (len(phone) > 1)} so far."]
-    sorted_out = [c for c in phone if c["outcome"] == "resolved"]
-    if sorted_out:
-        words.append(f"Sorted: {sorted_out[0]['summary']}")
+        return "No calls yet."
     waiting = [c for c in phone if any(not a["done"] for a in c["actions"])]
-    if not waiting:
-        return " ".join([*words, "Nothing needs you."])
-    words += [f"{len(waiting)} need{'s' * (len(waiting) == 1)} you.", *(c["summary"] for c in waiting[:2])]
-    names = [c["contact"]["name"].split()[0] if c.get("contact") else "the unknown caller" for c in waiting[:2]]
-    if len(names) == 2:
-        words.append(f"Which first, {names[0]} or {names[1]}?")
-    return " ".join(words)
+    first = to_owner(waiting[0]["summary"], owner) if waiting else "nothing needs you"
+    rest = len(phone) > 1 or not waiting
+    return f"{first[0].upper()}{first[1:].rstrip('.')}." + (" Want the rest?" if rest else "")
 
 
 if __name__ == "__main__":
@@ -108,9 +130,11 @@ if __name__ == "__main__":
     log = ["message from Sam: dinner works", "end: caller confirmed"]
     s, o, a = outcome("Sam Okafor", log, {"details": "dinner works"}, [{"who": "caller", "text": "hi"}])
     assert outcome("Sam", ["end: Sam confirmed dinner."], {"topic": "dinner?"}, [{"who": "caller", "text": "x"}])[:2] == ("Sam confirmed dinner.", "resolved")
-    assert (o, a[0]["text"]) == ("needs_you", "Reply to Sam: dinner works") and s == "Sam left a message: dinner works."
-    assert outcome("Unknown caller", [], {}, [])[:2] == ("Unknown hung up without a word.", "info")
+    assert (o, a[0]["text"]) == ("needs_you", "Reply to Sam") and s == "Sam left you a message."
+    assert outcome("Someone", [], {}, [])[:2] == ("Someone hung up without a word.", "info")
+    assert human_summary("Sam wants dinner moved.", ["could we move dinner"]) == "Sam wants dinner moved."
+    assert human_summary("I wanted to get a PR done today", ["hey I wanted to get a PR done today please"]) is None
     assert outcome("Sam", ["end: caller said goodbye"], {}, [{"who": "caller", "text": "bye"}])[1] == "resolved"
     assert outcome("Sam", ["end: hostile caller"], {}, [{"who": "caller", "text": "x"}])[1] == "info"
-    assert brief([], "Pranav") == "Hi Pranav. No calls yet."
+    assert brief([], "Pranav") == "No calls yet."
     print(brief(list_calls(), "Pranav"))

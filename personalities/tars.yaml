@@ -12,10 +12,13 @@ tool_filler:
   - "Checking."
   - "Querying."
   - "Stand by."
+hangup:
+  - "Patience setting has reached zero. I'm ending this call. Goodbye."
 farewell:
   - "Logged. Goodbye."
   - "Conversation closed. Goodbye."
 greeting:
+  owner: "{owner}. {assistant} here. How are things?"
   known: "{name}. {assistant}, for {owner}. State your business."
   unknown: "{assistant}, for {owner}. He's unreachable. Who is this?"
 confirm:

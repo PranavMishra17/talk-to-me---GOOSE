@@ -26,13 +26,20 @@ app = FastAPI(title="Goose")
 LAST: dict[str, dict] = {}   # the panel keeps a finished call's summary after LiveKit closes the room
 
 
+def _input(mode: str | None) -> dict:
+    """The worker reads this to keep the silence nudges off while someone waits to press hold to talk."""
+    return {"goose.input": mode} if mode in ("hold", "type", "open") else {}
+
+
 class Talk(BaseModel):
     pack: str | None = None   # None keeps the persona's own pack
+    input: str | None = None  # hold, type or open
 
 
 class Join(BaseModel):
     name: str | None = None   # a contact's name; None joins as an unknown caller
     owner: str = OWNER        # whose contact book the name is in
+    input: str | None = None  # hold, type or open
 
 
 class NewRoom(BaseModel):
@@ -87,13 +94,14 @@ def _first_persona() -> tuple[str, str, str]:
 
 @app.get("/api/me")
 async def me():
-    return {"owner": _first_persona()[1].title(), "dial_in": _phone(),
+    return {"owner": _first_persona()[1].title(), "assistant": _first_persona()[0].title(), "dial_in": _phone(),
             "personalities": list_packs()}
 
 
 @app.get("/config")
 async def config():
-    owners = [{"id": p["owner"], "name": p["owner"].title(), "pack": p["pack"]} for p in load_config()["personas"].values()]
+    owners = [{"id": p["owner"], "name": p["owner"].title(), "pack": p["pack"], "assistant": name}
+              for name, p in load_config()["personas"].items()]
     return {"phone": _phone(), "owners": owners}
 
 
@@ -179,7 +187,7 @@ async def talk(body: Talk = Talk()):
         await lk.aclose()
     jwt = api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]) \
         .with_identity(owner).with_name(owner.title()) \
-        .with_grants(api.VideoGrants(room_join=True, room=name)).to_jwt()
+        .with_grants(api.VideoGrants(room_join=True, room=name)).with_attributes(_input(body.input)).to_jwt()
     return {"room": name, "url": os.environ["LIVEKIT_URL"], "token": jwt}
 
 
@@ -201,6 +209,11 @@ async def rooms():
 @app.get("/api/rooms/{name}")
 async def room_state(name: str):
     if MOCK:
+        if name == "mock-skyler":
+            jesse = {"persona": "jesse", "owner": "skyler", "caller_tier": "public", "focus": "identify", "agenda": [],
+                     "slots": {}, "pending_confirm": None, "log": [], "summary": ""}
+            return {"room": name, "agents": {"jesse": jesse}, "floor": {"holder": None, "addressed_to": None},
+                    "participants": [{"identity": "agent-seed-0003", "kind": "agent", "persona": "jesse", "agent_state": "listening"}]}
         if name == "mock-offline":
             return {"room": name, "participants": [], "agents": {}, "floor": {"holder": None, "addressed_to": None}}
         return {**json.loads(MOCK_FILE.read_text(encoding="utf-8")), "room": name}
@@ -233,7 +246,7 @@ async def open_room(body: NewRoom):
         raise HTTPException(400, f"no assistant for {body.owner!r}")
     pack = _pack(body.pack, personas[persona]["pack"])
     if MOCK:
-        return {"url": f"/rooms/mock-room?owner={body.owner}"}
+        return {"url": f"/rooms/{'mock-skyler' if body.owner == 'skyler' else 'mock-room'}?owner={body.owner}"}
     name = f"goose-{os.urandom(3).hex()}"
     lk = _lk()
     try:
@@ -265,7 +278,7 @@ async def room_token(name: str, body: Join = Join()):
     who = f"{(body.name or 'guest').split()[0].lower()}-{os.urandom(2).hex()}"
     jwt = api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]) \
         .with_identity(who).with_name(body.name or "Guest").with_grants(api.VideoGrants(room_join=True, room=name)) \
-        .with_attributes({"goose.caller": body.name} if body.name else {}).to_jwt()
+        .with_attributes({**({"goose.caller": body.name} if body.name else {}), **_input(body.input)}).to_jwt()
     return {"url": os.environ["LIVEKIT_URL"], "token": jwt}
 
 

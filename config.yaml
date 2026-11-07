@@ -33,7 +33,7 @@ turn:
   endpointing: {mode: dynamic, min_delay: 0.3, max_delay: 1.5}           # holds over 1.5 s read as dead air
   # Adaptive is suppressed in the first ~1 s of agent speech (backchannel_boundary). Real barge-ins never replay the tail; only false interruptions resume.
   interruption: {mode: adaptive, min_duration: 0.5, min_words: 0, false_interruption_timeout: 1.5, resume_false_interruption: true}
-  preemptive_generation: {enabled: true, preemptive_tts: false}
+  preemptive_generation: {enabled: true, preemptive_tts: false, max_retries: 1}   # default retries spent 3-4 LLM calls a turn
   user_turn_limit: {max_duration: 30.0}
 decider:
   backend: jev                     # jev | keyword | llm | mock | laya_local (stub, local fallback)
@@ -45,7 +45,7 @@ session:
   silence_nudges_s: [6, 12, 20]
   backchannel_allowlist: [yeah, ok, mm-hm, right, sure, go on]
   echo: {window_s: 3.0, overlap: 0.7}
-limits: {max_turns_per_item: 3, max_turns_per_call: 40, max_summons: 2, floor_lease_s: 20, max_agent_streak: 2}
+limits: {max_violations: 3, max_turns_per_item: 3, max_turns_per_call: 40, max_summons: 2, floor_lease_s: 20, max_agent_streak: 2}
 personas:
   # A network shares contacts and can be summoned. No network: nothing of anyone else reaches this persona's calls.
   goose: {owner: pranav, pack: goose, network: honk}

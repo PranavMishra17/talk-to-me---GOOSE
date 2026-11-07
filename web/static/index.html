@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <style>
-  :root{--paper:#FFF8E7;--ink:#1A1423;--balloon:#FFD23F;--radio:#E63946;--sky:#4CC9F0;--mute:#5E5868;--shadow:5px 5px 0 var(--ink)}
+  :root{--navy:#1B2A4A;--suit:#5C6B3C;--patch:#D9A41C;--visor:#2E86AB;--hud:#7CFF9B;--paper:#FFF8E7;--ink:#1A1423;--balloon:#FFD23F;--radio:#E63946;--sky:#4CC9F0;--mute:#5E5868;--shadow:5px 5px 0 var(--ink)}
   @media (prefers-color-scheme: dark){:root{--paper:#1A1423;--ink:#FFF8E7;--mute:#B9B3C4}}
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
@@ -36,13 +36,14 @@
   .phone small{display:block;font-family:"Atkinson Hyperlegible";font-size:13px;letter-spacing:0;color:var(--mute)}
 
   /* the one animated moment: a ringing phone, pure CSS */
-  .ring{width:120px;height:120px;margin:0 auto 6px;position:relative}
-  .ring svg{width:100%;height:100%;overflow:visible}
-  .ring .handset{transform-origin:60px 70px;animation:shake 1.1s ease-in-out infinite}
-  .ring .wave{opacity:0;animation:wave 1.1s ease-out infinite}
-  .ring .wave.w2{animation-delay:.2s}.ring .wave.w3{animation-delay:.4s}
-  @keyframes shake{0%,100%{transform:rotate(0)}20%{transform:rotate(-10deg)}40%{transform:rotate(9deg)}60%{transform:rotate(-7deg)}80%{transform:rotate(5deg)}}
-  @keyframes wave{0%{opacity:0;transform:scale(.7)}30%{opacity:1}100%{opacity:0;transform:scale(1.25)}}
+  .headline{color:inherit;text-decoration:none;display:inline-block;transition:transform .15s}
+  .headline:hover,.headline:focus-visible{transform:translate(-2px,-2px);text-decoration:underline;text-decoration-thickness:4px}
+  .stage{position:relative;height:170px}
+  .stage svg{width:100%;height:100%;overflow:visible}
+  .jet{animation:fly 2.6s cubic-bezier(.3,.7,.4,1) .2s both}
+  .trail{stroke-dasharray:420;stroke-dashoffset:420;animation:trail 2.6s ease-out .2s both}
+  @keyframes fly{from{transform:translate(-420px,60px) rotate(-8deg)}to{transform:translate(0,0) rotate(0)}}
+  @keyframes trail{to{stroke-dashoffset:0}}
 
   .cast{margin:0 0 44px}
   .cast h2{font-size:38px;margin:0 0 4px}
@@ -92,18 +93,37 @@
 <main>
   <section class="hero">
     <div class="balloon">
-      <h1 class="shout">Talk to me, Goose.</h1>
+      <h1 class="shout"><a class="headline" href="/app?talk=1">Talk to me, Goose.</a></h1>
       <p>Your assistant picks up when you can't. It knows who's calling, what they're allowed to hear, and when to pull someone else's assistant into the call. Interrupt it, go quiet, tell it to talk normal: it keeps its spine.</p>
     </div>
     <aside>
-      <div class="ring" aria-hidden="true">
-        <svg viewBox="0 0 120 120">
-          <g class="wave"><path d="M86 34a22 22 0 0 1 0 24" stroke="#1A1423" stroke-width="3" fill="none" stroke-linecap="round"/></g>
-          <g class="wave w2"><path d="M94 26a34 34 0 0 1 0 40" stroke="#1A1423" stroke-width="3" fill="none" stroke-linecap="round"/></g>
-          <g class="wave w3"><path d="M102 18a46 46 0 0 1 0 56" stroke="#1A1423" stroke-width="3" fill="none" stroke-linecap="round"/></g>
-          <g class="handset"><path d="M38 28c-6 0-12 4-12 12 0 26 24 50 50 50 8 0 12-6 12-12l-4-12-14 4-6-6c-6-6-10-10-14-16l6-12-10-6z" fill="#E63946" stroke="#1A1423" stroke-width="3" stroke-linejoin="round"/></g>
-        </svg>
-      </div>
+    <div class="stage">
+      <svg viewBox="0 0 300 240" aria-hidden="true">
+        <path class="trail" d="M-60 150 C 0 200, 80 125, 80 118" fill="none" stroke="var(--ink)" stroke-width="3" stroke-dasharray="10 8" stroke-linecap="round"/>
+        <g class="jet" transform="translate(0,0)">
+          <g transform="translate(150,118)">
+            <!-- fuselage -->
+            <path d="M-70 0 L30 -10 L70 0 L30 10 Z" fill="#DDE3EA" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
+            <!-- wings -->
+            <path d="M-10 0 L-30 -34 L-2 -34 L20 0 Z" fill="var(--navy)" stroke="var(--ink)" stroke-width="3"/>
+            <path d="M-10 0 L-30 34 L-2 34 L20 0 Z" fill="var(--navy)" stroke="var(--ink)" stroke-width="3"/>
+            <!-- tail -->
+            <path d="M-70 0 L-62 -18 L-48 -18 L-52 0 Z" fill="var(--radio)" stroke="var(--ink)" stroke-width="3"/>
+            <!-- canopy with pilot -->
+            <path d="M8 -9 Q22 -24 42 -9 Z" fill="#BFE7F5" stroke="var(--ink)" stroke-width="3"/>
+            <circle cx="24" cy="-11" r="5" fill="#F2F0EB" stroke="var(--ink)" stroke-width="2"/>
+            <path d="M20 -11 h8" stroke="var(--visor)" stroke-width="3"/>
+            <!-- waving glove -->
+            <path d="M34 -16 l4 -8" stroke="#E8C9A0" stroke-width="4" stroke-linecap="round"/>
+            <!-- roundel -->
+            <circle cx="-16" cy="-22" r="6" fill="var(--paper)" stroke="var(--ink)" stroke-width="2"/>
+            <circle cx="-16" cy="-22" r="2.5" fill="var(--radio)"/>
+          </g>
+        </g>
+        <!-- radio waves from the nose -->
+        <path d="M232 100 a14 14 0 0 1 0 36 M242 90 a26 26 0 0 1 0 56" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+    </div>
       <p><strong>Can't pick up? Get Goose to take the call for you.</strong> It knows who's calling, sorts out what it can, and tells you how it went.</p>
       <a class="cta" href="#room">Call Goose</a>
       <div class="phone" id="phone">+1 (xxx) xxx-xxxx<small>Rings Goose directly</small></div>

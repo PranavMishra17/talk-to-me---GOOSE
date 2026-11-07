@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 from proxy_core.personality import knob, list_packs, load_pack, nudge_text, render_style
+from proxy_core.shape import problems
 
 NAMES = ["cortana", "dobby", "goose", "jarvis", "jesse", "tars"]
 
@@ -35,3 +36,14 @@ def test_nudge_differs_and_knob():
     for step in range(3):
         assert len({nudge_text(load_pack(n), step) for n in NAMES}) == len(NAMES)
     assert knob(load_pack("jesse"), "patience_turns") == 2
+
+
+@pytest.mark.parametrize("name", ["goose", "jesse"])
+def test_lines_code_speaks_keep_the_voice_rules(name):
+    p = load_pack(name)
+    lines = [*p["greeting"].values(), *p["confirm"].values(), *p["tool_filler"], *p["hangup"], *p["farewell"],
+             *p["knobs"]["nudge_style"], *p["ext"], *p["own"]]
+    for line in lines:
+        assert problems(line) == [], line
+    assert not [x for x in lines if "assistant}" not in x and "assistant" in x.lower()]     # no job title, ever
+    assert "assistant" not in p["greeting"]["unknown"].replace("{assistant}", "")

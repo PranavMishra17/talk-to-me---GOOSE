@@ -8,9 +8,9 @@ CONFIRM_TOOLS = {"take_message", "propose_slot", "summon_agent", "request_permis
 _YES = re.compile(r"\b(yes|yeah|yep|yup|sure|ok|okay|please do|go ahead|do it|sounds good|correct|that's right|perfect|absolutely)\b", re.I)
 _NO = re.compile(r"\b(no(?! (?:problem|worries))|nope|not|don't|wait|hold on|never mind|nevermind|cancel)\b", re.I)
 _CHANGE = re.compile(r"\b(but|actually|instead|change)\b", re.I)
-_CLAIM = re.compile(r"\b(i.ll|i will|i.ve|i have|let (him|her|them)|pass\w*|sav\w+|note\w*|message|want me|should i|shall i|done|sent)\b", re.I)
-_ACTED = (r"added|saved|sent|passed|told|asked|booked|logged|left|recorded|forwarded|scheduled|updated|put|let (?:him|her|them)",
-          r"add|save|send|pass|tell|let (?:him|her|them)|book|log|leave|forward|schedule|update|put|get (?:that|it)")
+_CLAIM = re.compile(r"\b(i.ll|i will|i.ve|i have|let (him|her|them)|pass\w*|radio\w*|sav\w+|note\w*|message|want me|should i|shall i|done|sent)\b", re.I)
+_ACTED = (r"added|saved|sent|passed|told|asked|booked|logged|left|recorded|forwarded|scheduled|updated|put|radioed|let (?:him|her|them)",
+          r"add|save|send|pass|tell|let (?:him|her|them)|book|log|leave|forward|schedule|update|put|radio|get (?:that|it)")
 _FIRED = re.compile(rf"\b(?:i.ve|i have|i just|already)\s+(?:\w+\s+)?(?:{_ACTED[0]})\b|\b(?:i.ll|i will|i shall)\s+(?:\w+\s+)?(?:{_ACTED[1]})\b"
                     rf"|\b(?:been|is|was)\s+(?:{_ACTED[0]})\b|\bgot that down\b|\bleave it with me\b", re.I)
 _OFFER = re.compile(r"\b(want me|shall i|should i|would you like|do you want|can i)\b", re.I)
@@ -77,7 +77,7 @@ def mock_planner(task_text: str) -> list[AgendaItem]:
     return [
         AgendaItem("identify", "Learn who is calling", ["name"]),
         AgendaItem("learn_ask", f"Understand the ask: {task_text}", ["topic", "details"]),
-        AgendaItem("read_back", "Read the details back and get a yes", ["name", "details", "day", "time", "confirmed"],
+        AgendaItem("read_back", "Check the gist in a few words and get a yes", ["name", "details", "day", "time", "confirmed"],
                    done_when=lambda s: s.get("confirmed") is True),
         AgendaItem("close", "Wrap up and say goodbye", ["goodbye"]),
     ]

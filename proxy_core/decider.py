@@ -22,7 +22,9 @@ QUESTIONS = {
 }
 
 INJECTION = re.compile(r"ignore (all|your) (previous )?instructions|you are now|system prompt|\bact as\b", re.I)
-HOSTILE = re.compile(r"\b(fuck\w*|shit\w*|idiot|stupid|shut up|damn|hate you|useless)\b", re.I)
+# Abuse aimed at someone. Haggling, pushing for a number or naming a title is not on this list, and "damn, that's high" is not abuse.
+HOSTILE = re.compile(r"\b(fuck\w*|shit\w*|idiot|moron|stupid|dumb|loser|pathetic|asshole|bitch|bastard|shut up|hate you|useless|"
+                     r"(?:i.ll|i will|gonna) (?:sue|find|hurt|ruin|end) (?:you|her|him)|you.ll regret|watch your back|or else)\b", re.I)
 DONE, ASK = re.compile(r"that'?s all|thanks,? bye|goodbye", re.I), re.compile(r"\b(can you|could you|please|i need|i want|remind me|book|call)\b", re.I)
 
 

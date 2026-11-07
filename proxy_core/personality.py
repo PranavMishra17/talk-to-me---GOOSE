@@ -59,6 +59,11 @@ def tool_filler(pack: dict, n: int) -> str:
     return lines[n % len(lines)]
 
 
+def hangup(pack: dict) -> str:
+    """Spoken by code when the agent ends the call on a caller."""
+    return (pack.get("hangup") or pack["farewell"])[0]
+
+
 def farewell(pack: dict, n: int = 0) -> str:
     """Spoken by code before end_call: several Inference models hang up silently."""
     lines = pack["farewell"]
@@ -68,6 +73,11 @@ def farewell(pack: dict, n: int = 0) -> str:
 def greeting(pack: dict, assistant: str, owner: str, name: str | None = None) -> str:
     """Code speaks the first line, so a known caller is never asked who is calling, and no model delays it."""
     return pack["greeting"]["known" if name else "unknown"].format(assistant=assistant, owner=owner, name=name)
+
+
+def owner_hello(pack: dict, assistant: str, owner: str) -> str:
+    """How the assistant opens with its own owner: a person first, the calls after they answer."""
+    return pack["greeting"].get("owner", "Hey {owner}, {assistant} here, how's it going?").format(assistant=assistant, owner=owner)
 
 
 def confirm_line(pack: dict, tool: str, owner: str) -> str:

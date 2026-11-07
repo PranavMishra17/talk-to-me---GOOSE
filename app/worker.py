@@ -16,6 +16,7 @@ from livekit import rtc
 from livekit.agents import AgentServer, JobContext, cli, room_io
 
 from app import native
+from app import recap
 from app.agent import GooseAgent
 from app.owner import OwnerAgent
 from app.providers import build_session
@@ -34,7 +35,8 @@ def _noise(cfg):
     if cfg["providers"]["noise_cancellation"]["kind"] != "bvc_telephony":
         return None
     from livekit.plugins import noise_cancellation   # Cloud only: install with `uv sync --extra nc`
-    return lambda params: noise_cancellation.BVCTelephony() if params.participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP else None
+    return lambda params: {rtc.ParticipantKind.PARTICIPANT_KIND_SIP: noise_cancellation.BVCTelephony,
+                           rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD: noise_cancellation.BVC}.get(params.participant.kind, lambda: None)()
 
 
 async def _first_human(ctx, wait_s):
@@ -63,12 +65,66 @@ def _save(ctx, session, agent):
     saved = []
     def write(*_):
         if not saved:
-            saved.append(calls.write_call(agent.call_record(f"console-{os.urandom(3).hex()}" if ctx.is_fake_job() else ctx.job.id, turns())))
-            logger.info("CALL RECORD %s", saved[0])
+            saved.append(agent.call_record(f"console-{os.urandom(3).hex()}" if ctx.is_fake_job() else ctx.job.id, turns()))
+            logger.info("CALL RECORD %s", calls.write_call(saved[0]))
     async def at_shutdown():
         write()
+        await _recap(session, agent, saved[0])
     session.on("close", write)
     ctx.add_shutdown_callback(at_shutdown)
+
+
+async def _recap(session, agent, record):
+    """The record is already safe on disk. Better words replace the plain line if they come in time; a test run spends nothing."""
+    heard = any(t["who"] == "caller" for t in record["transcript"])
+    if record["kind"] != "phone" or not heard or record["summary"].startswith("Ended by ") or os.environ.get("GOOSE_AGENT_TAG"):
+        return
+    who = (record["contact"] or {}).get("name", "someone").split()[0]
+    try:
+        line = await asyncio.wait_for(recap.summarise(session.llm, who, agent.owner.title(), record["transcript"]), 4)
+    except Exception as e:
+        logger.warning("call recap skipped: %r", e)
+        return
+    if line:
+        calls.write_call({**record, "summary": line})
+
+
+def _hold_to_talk(ctx, session, agent):
+    """The browser's hold button sends start_turn and end_turn, and also mutes the mic. Either signal works and a release
+    commits once. RoomIO ignores mute, and a muted track just stops sending frames, so VAD alone would never end the turn."""
+    if ctx.is_fake_job():
+        return
+    muted = [False]
+
+    def mic(state):                  # the SDK's push-to-talk pattern: detach, then commit, which flushes STT
+        agent.manual_input = True    # quiet on purpose, so the silence ladder stays out of it
+        if state != muted[0]:
+            muted[0] = state
+            session.input.set_audio_enabled(not state)
+            if state:
+                session.commit_user_turn(transcript_timeout=1.5, stt_flush_duration=0.6)
+
+    async def start_turn(_):
+        try:
+            session.interrupt()
+            session.clear_user_turn()
+        except RuntimeError:         # a closing session, or a hang-up line that must finish
+            pass
+        mic(False)
+        return ""
+
+    async def end_turn(_):
+        mic(True)
+        return ""
+
+    def on_track(participant, publication, state):
+        if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD and publication.source == rtc.TrackSource.SOURCE_MICROPHONE:
+            mic(state)
+
+    ctx.room.on("track_muted", lambda p, pub: on_track(p, pub, True))
+    ctx.room.on("track_unmuted", lambda p, pub: on_track(p, pub, False))
+    ctx.room.local_participant.register_rpc_method("start_turn", start_turn)
+    ctx.room.local_participant.register_rpc_method("end_turn", end_turn)
 
 
 async def _run_owner(ctx, session, agent, kind, noise=None):
@@ -76,6 +132,7 @@ async def _run_owner(ctx, session, agent, kind, noise=None):
     _save(ctx, session, agent)
     await session.start(room=ctx.room, agent=agent, room_options=room_io.RoomOptions(
         participant_kinds=[kind], audio_input=room_io.AudioInputOptions(noise_cancellation=noise)))
+    _hold_to_talk(ctx, session, agent)
 
 
 async def _run(ctx: JobContext, persona: str):
@@ -111,7 +168,7 @@ async def _run(ctx: JobContext, persona: str):
     agent = GooseAgent(persona, caller=number or meta.get("caller", ""), task=meta.get("task", "Take a message and coordinate."),
                        cfg=cfg, lead=meta.get("lead"), request=meta.get("request", ""),
                        voucher=(meta["requester_tier"], meta["requester_owner"]) if meta.get("request") else None, pack=pack_name)
-    if owner == vault.OWNER:
+    if not meta.get("request"):      # a summoned agent joins someone else's call; every call of an agent's own gets a record
         _save(ctx, session, agent)
     agent.room = ctx.room
     agent.floor = RoomFloor(ctx.room, ctx.api, persona, cfg)
@@ -127,6 +184,8 @@ async def _run(ctx: JobContext, persona: str):
     session.on("function_tools_executed", lambda ev: agent.publish())
 
     def caller_id(p):   # S8-06: the tier comes from the number the phone network gave us
+        if p.attributes.get("goose.input") in ("hold", "type"):   # quiet on purpose from the first second, not the first press
+            agent.manual_input = True
         number = _number(p, owner)
         if number:
             asyncio.ensure_future(agent.set_caller(number))
@@ -139,9 +198,11 @@ async def _run(ctx: JobContext, persona: str):
     await session.start(room=ctx.room, agent=agent, room_options=room_io.RoomOptions(**link,
         participant_kinds=[rtc.ParticipantKind.PARTICIPANT_KIND_SIP, rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD,
                            rtc.ParticipantKind.PARTICIPANT_KIND_AGENT],   # AGENT so the other agent's speech is visible
+        text_input=room_io.TextInputOptions(text_input_cb=agent.on_typed),
         audio_input=room_io.AudioInputOptions(noise_cancellation=_noise(cfg))))
     for p in () if ctx.is_fake_job() else ctx.room.remote_participants.values():   # the console's room is a mock
         caller_id(p)
+    _hold_to_talk(ctx, session, agent)
     agent.publish()
 
 

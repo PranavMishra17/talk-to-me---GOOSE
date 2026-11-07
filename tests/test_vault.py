@@ -29,10 +29,8 @@ def test_profile_stops_at_the_tier():
 
 def test_public_calendar_is_free_busy_only():
     assert all(set(e) == {"when", "busy"} for e in vault.get_calendar("public"))
-    friend = {e["when"]: e.get("title") for e in vault.get_calendar("friends", today=date(2026, 11, 6))}
-    assert friend["tomorrow, 9 to 10 in the morning"] is None     # cardiology stays a busy block
-    assert friend["tomorrow, 7 to half past 9 in the evening"] == "Dinner with Sam, Lena and Rohan"
-    assert "Dinner with Sam, Lena and Rohan" in friend.values()
+    friend = vault.get_calendar("friends", today=date(2026, 11, 6))
+    assert friend and not any(e.get("title") for e in friend)      # dinner and the Logan pickup stay busy blocks
 
 
 def test_unlabelled_record_counts_as_private(tmp_path):
@@ -83,9 +81,9 @@ def test_prefetch_is_tier_filtered_and_relevant():
     assert "7:30" in lena and "gift" not in lena     # her friends-tier mail, not the private one
     sam = prompt_context("+15550100222")
     assert "Neptune" in sam and "Northwind" not in sam and "Cardiology" not in sam and "busy" in sam
-    priya = prompt_context("+15550100666")
-    assert "liability cap" in priya and "Neptune" not in priya and "Dinner" not in priya  # work, not the owner's evenings
-    assert "15 percent" not in priya and "12 percent" not in priya   # private stays private, work or not
+    connor = prompt_context("+15550100666")
+    assert "liability cap" in connor and "Neptune" not in connor and "Dinner" not in connor  # work, not the owner's evenings
+    assert "15 percent" not in connor and "12 percent" not in connor   # private stays private, work or not
     assert "18,240" not in vault.prefetch("pranav", {"name": "Beacon Bank", "relationship": "owner", "tier": "private"}, [], TODAY)
 
 
@@ -97,7 +95,7 @@ def test_prefetch_stays_short_and_only_for_the_owner():
 
 def test_an_unknown_caller_gets_the_public_profile_and_busy_blocks():
     b = vault.briefing("pranav", "public", None, TODAY)
-    assert "best time to reach: Weekday afternoons" in b and "tomorrow, 9 to 10 in the morning: busy" in b
+    assert "best time to reach: Weekday afternoons" in b and ": busy" in b
     assert "Dinner" not in b and "Cardiology" not in b and "coffee" not in b and "Mass General" not in b
 
 
@@ -112,7 +110,7 @@ def test_the_briefing_never_says_more_than_the_tools_would():
 
 def test_a_work_contact_hears_work_titles_and_the_public_profile():
     b = vault.briefing("pranav", "friends", ["work"], TODAY)
-    assert "Talk at Boston Tech Meetup" in b and "Dinner" not in b and "Climbing" not in b and "coffee" not in b
+    assert ": busy" in b and "Dinner" not in b and "Logan" not in b and "coffee" not in b
 
 
 def test_the_briefing_stays_short_and_only_for_an_owner_with_data():

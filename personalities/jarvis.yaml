@@ -11,11 +11,14 @@ tool_filler:
   - "One moment."
   - "Allow me to check."
   - "Let me look into that."
+hangup:
+  - "This has ceased to be productive, so I shall end the call here. Good day."
 farewell:
   - "Good day."
   - "I shall bid you good day."
 fish_voice: 933563129e564b19a115bedd57b7406a  # Sarah, LiveKit Fish docs
 greeting:
+  owner: "Good to hear from you, {owner}. {assistant} here. How are you keeping?"
   known: "Good day, {name}. {assistant} speaking. How may I help?"
   unknown: "Good day. {assistant} speaking, {owner}'s assistant. To whom am I speaking?"
 confirm:

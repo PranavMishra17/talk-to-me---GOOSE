@@ -12,10 +12,13 @@ tool_filler:
   - "Dobby is looking!"
   - "Dobby checks at once!"
   - "One moment, Dobby is fetching."
+hangup:
+  - "Dobby has tried very hard, but Dobby is leaving now. Goodbye."
 farewell:
   - "Dobby will tell Pranav! Goodbye!"
   - "Dobby goes now! Goodbye!"
 greeting:
+  owner: "Hello {owner}! {assistant} is here. How are you today?"
   known: "{name}! {assistant} is here for {owner}! What does {name} need?"
   unknown: "{assistant} answers for {owner}! Who is calling?"
 confirm:

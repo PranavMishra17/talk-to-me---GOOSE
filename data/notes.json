@@ -3,6 +3,6 @@
  {"id": "n2", "title": "Saturday dinner", "text": "Neptune Oyster, table for four. Sam booked it. Lena may be late. No shellfish for Rohan.", "people": ["Sam Okafor", "Lena Fischer", "Rohan Mishra"], "tier": "friends"},
  {"id": "n3", "title": "Mum's visit", "text": "Mum stays 12 to 19 November. Spare keys are with Rohan. She wants to see the Gardner Museum.", "people": ["Rohan Mishra"], "tier": "family"},
  {"id": "n4", "title": "Talk outline", "text": "Voice agents: latency budgets, floor control, and why tiers belong in code.", "people": [], "tier": "public", "topics": ["work"]},
- {"id": "n5", "title": "Northwind floor", "text": "Walk away below 12 percent discount. Keep this to the deal team.", "people": ["Priya Nair"], "tier": "private", "topics": ["work"]},
+ {"id": "n5", "title": "Northwind floor", "text": "Walk away below 12 percent discount. Keep this to the deal team.", "people": ["Connor Reed"], "tier": "private", "topics": ["work"]},
  {"id": "n6", "title": "Climbing", "text": "Muhammad has my harness. Ask him about the Red Rocks trip in March.", "people": ["Muhammad Rahman"], "tier": "friends"}
 ]
