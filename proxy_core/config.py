@@ -42,7 +42,7 @@ def require_livekit() -> None:
     load_env()
     missing = [k for k in ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET") if not os.environ.get(k)]
     if missing:
-        raise SystemExit(f"Missing {', '.join(missing)}. Copy .env.sample to .env and fill it in: see Keys in README.md.\n"
+        raise SystemExit(f"Missing {', '.join(missing)}. Copy .env.sample to .env and fill it in: see Talk to it in README.md.\n"
                          "To look around without keys: set GOOSE_MOCK=1 and run uv run uvicorn app.api:app --port 8000")
 
 
