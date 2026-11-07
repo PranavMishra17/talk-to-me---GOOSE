@@ -1,11 +1,12 @@
 [project]
-name = "goose-lab"
+name = "goose"
 version = "0.1.0"
-description = "Goose lab repo: proxy_core (pure logic) + thin LiveKit wiring"
+description = "Goose: a voice personal assistant on LiveKit"
 requires-python = ">=3.10"
 dependencies = [
   "livekit-agents>=1.8,<1.9",
   "livekit-api",
+  "livekit-plugins-noise-cancellation",
   "python-dotenv",
   "pyyaml",
   "httpx",
@@ -17,11 +18,8 @@ dependencies = [
 # Do NOT add livekit-plugins-turn-detector or livekit-plugins-silero (inference.* replaces them).
 
 [project.optional-dependencies]
-# Cloud-only; BVC noise cancellation. Skipped in tests.
-nc = ["livekit-plugins-noise-cancellation"]
-optimize = [
-    "dspy>=3.4.1",
-]
+# scripts/optimize_prompt.py only: uv run --extra optimize ...
+optimize = ["dspy>=3.4.1"]
 
 [dependency-groups]
 dev = ["pytest", "pytest-asyncio"]

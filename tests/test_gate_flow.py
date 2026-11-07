@@ -227,7 +227,7 @@ def test_the_read_back_is_a_short_paraphrase_of_the_corrected_value():
 
 
 def test_the_read_back_quotes_nothing_when_the_model_fails():
-    a, _, heard, _ = typed(["Tell him dinner works.", "Yes.", "That's all, bye."], persona="goose", model=[MSG, RuntimeError("down")])
+    a, _, heard, _ = typed(["Tell him dinner Saturday at 7 works.", "Yes.", "Make it Sunday.", "That's all, bye."], persona="goose", model=[MSG, "Got it.", RuntimeError("down")])
     assert heard[-1] == "That's everything for Pranav, right?"
 
 

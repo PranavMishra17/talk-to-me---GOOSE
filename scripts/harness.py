@@ -4,7 +4,7 @@
   uv run python scripts/harness.py --maya --caller +15550100222    # both workers: Goose summons Maya, reports who spoke when
 Starts the real worker, dispatches it into a real room, joins as a caller, speaks synthesised lines, and measures
 end of caller speech -> first agent audio. The room and worker are always torn down. Exit 0 = every line answered in budget.
-Result goes to stdout, .harness/, and the dashboard log.
+Result goes to stdout and .harness/last.json.
 """
 import argparse, asyncio, hashlib, json, os, re, subprocess, sys, time, uuid, wave
 from pathlib import Path
@@ -17,10 +17,9 @@ from livekit import api, rtc
 from app import native
 from livekit.agents import inference
 
-import plan
 from proxy_core import latency
 from proxy_core.agenda import is_bye, is_yes
-from proxy_core.config import load_config, load_env
+from proxy_core.config import require_livekit, load_config, load_env
 
 OUT = ROOT / ".harness"
 SR, FRAME = 24000, 480   # 20 ms
@@ -235,7 +234,6 @@ def main():
     ap.add_argument("--hold", type=float, default=0, help="stay silent this many seconds after the last line")
     ap.add_argument("--sip", action="store_true", help="join as a SIP participant, so hang-up and BVC run the phone path")
     ap.add_argument("--meta", default="", help="dispatch metadata, as the web app sends it: {\"mode\": \"owner\"} or {\"pack\": \"jesse\"}")
-    ap.add_argument("--no-log", action="store_true", help="skip the dashboard log line")
     ap.add_argument("--live-as", help="this persona answers under --persona's dispatch name, as scripts/demo.py runs it")
     ap.add_argument("--maya", action="store_true", help="two workers: run the summon script unless --say replaces it")
     ap.add_argument("--no-maya-worker", action="store_true", help="prove the join timeout: summon with nobody to answer")
@@ -248,7 +246,7 @@ def main():
         global QUIET_S
         QUIET_S = 3.0       # a tool turn is two speeches with a gap: filler, then the answer
     a.tag = f"-{uuid.uuid4().hex[:6]}"      # a private agent name: other sessions may have workers on this project
-    load_env()
+    require_livekit()
     native.harden()
     OUT.mkdir(exist_ok=True)
     log_path, maya_log = OUT / "worker.log", OUT / "worker_maya.log"
@@ -282,9 +280,6 @@ def main():
     print(latency.table(res["modules"]))
     for t, who, line in res.get("transcript", []):
         print(f"{t:7.2f}s {who:7} {line}")
-    if not a.no_log:
-        plan.log(f"harness {'PASS' if ok else 'FAIL'}: greeting {res.get('greeting_s')} s, reply first audio "
-                 f"{[t['first_audio_s'] for t in res['turns']]} s (budget {BUDGET_S} s); modules {res['modules'][1:]}", who="harness")
     sys.exit(0 if ok else 1)
 
 

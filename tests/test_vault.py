@@ -70,12 +70,18 @@ def bundle(number):
     return vault.prefetch("pranav", vault.find_contact(number), [], TODAY)
 
 
+def prompt_context(number):
+    """Everything the model is told up front about a known caller: their bundle and the owner briefing."""
+    c = vault.find_contact(number)
+    return bundle(number) + "\n" + vault.briefing("pranav", vault.phone_tier(c["tier"]), c.get("topics", ["personal"]), TODAY)
+
+
 def test_prefetch_is_tier_filtered_and_relevant():
-    lena = bundle("+15550100444")
+    lena = prompt_context("+15550100444")
     assert "7:30" in lena and "gift" not in lena     # her friends-tier mail, not the private one
-    sam = bundle("+15550100222")
+    sam = prompt_context("+15550100222")
     assert "Neptune" in sam and "Northwind" not in sam and "Cardiology" not in sam and "busy" in sam
-    connor = bundle("+15550100666")
+    connor = prompt_context("+15550100666")
     assert "liability cap" in connor and "Neptune" not in connor and "Dinner" not in connor  # work, not the owner's evenings
     assert "15 percent" not in connor and "12 percent" not in connor   # private stays private, work or not
     assert "18,240" not in vault.prefetch("pranav", {"name": "Beacon Bank", "relationship": "owner", "tier": "private"}, [], TODAY)
@@ -85,3 +91,29 @@ def test_prefetch_stays_short_and_only_for_the_owner():
     for number in ("+15550100222", "+15550100333", "+15550100444", "+15550100555", "+15550100666"):
         assert 0 < len(bundle(number).split()) <= vault.PREFETCH_WORDS
     assert vault.prefetch("rohan", vault.find_contact("+15550100222"), [], TODAY) == ""
+
+
+def test_an_unknown_caller_gets_the_public_profile_and_busy_blocks():
+    b = vault.briefing("pranav", "public", None, TODAY)
+    assert "best time to reach: Weekday afternoons" in b and ": busy" in b
+    assert "Dinner" not in b and "Cardiology" not in b and "coffee" not in b and "Mass General" not in b
+
+
+def test_the_briefing_never_says_more_than_the_tools_would():
+    for tier in ("public", "friends", "family"):
+        tools = json.dumps([vault.get_profile(tier), vault.get_calendar(tier, today=TODAY)])
+        for line in vault.briefing("pranav", tier, ["personal", "work"], TODAY).splitlines():
+            title = line.rsplit(": ", 1)[-1]
+            assert title in ("busy", "") or title in tools or line.startswith("Diary"), line
+    assert "Northwind" not in vault.briefing("pranav", "family", None, TODAY)     # private stays private on the phone
+
+
+def test_a_work_contact_hears_work_titles_and_the_public_profile():
+    b = vault.briefing("pranav", "friends", ["work"], TODAY)
+    assert ": busy" in b and "Dinner" not in b and "Logan" not in b and "coffee" not in b
+
+
+def test_the_briefing_stays_short_and_only_for_an_owner_with_data():
+    for tier in ("public", "friends", "family"):
+        assert len(vault.briefing("pranav", tier, None, TODAY).split()) <= 200
+    assert vault.briefing("nobody", "family", None, TODAY) == ""

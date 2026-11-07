@@ -5,8 +5,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime
-
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -38,7 +37,8 @@ def test_reset_clear_and_the_web_see_one_world(tmp_path, monkeypatch):
     print(stage("reset", tmp_path))
     rows = calls.list_calls()
     assert not overlay.exists() and len(rows) == 4 and "Muhammad Rahman" not in str(rows)
-    assert all(datetime.fromisoformat(c["started_at"]).date() == datetime.now().date() for c in rows)
+    now = datetime.now().astimezone()      # hours back, not "today": this must pass just after midnight too
+    assert all(timedelta(0) <= now - datetime.fromisoformat(c["started_at"]) < timedelta(days=1) for c in rows)
     assert datetime.fromisoformat(rows[0]["transcript"][0]["ts"]) >= datetime.fromisoformat(rows[0]["started_at"])
     assert [c["id"] for c in TestClient(app).get("/api/calls").json()] == [c["id"] for c in rows]
     assert "Rohan" in calls.brief(rows, "Pranav") and any(c["outcome"] == "needs_you" for c in rows)

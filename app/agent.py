@@ -1,4 +1,4 @@
-"""LiveKit-touching: REWRITE against the starter kit tomorrow (keep the three hook bodies, call proxy_core).
+"""The live agent: tools, hooks and what code speaks. Decisions live in proxy_core; this file wires them to the SDK.
 
 Thin Agent subclass. All decisions live in proxy_core; this file only wires them to SDK hooks and tools.
 Tool bodies are stubs with no side effects beyond a log list: bench uses mock_tools anyway.
@@ -112,6 +112,10 @@ class GooseAgent(DataTools, Agent):
         else:
             self.caller_tier = policy.resolve_tier(self.owner, number)
             self._known = f"\n\n# WHO IS CALLING\n{self._not_owner()}"
+        # Every caller's prompt carries the owner's profile and next week's diary at their tier, so the common asks
+        # ("is he free Monday?") need no tool round trip. A summoned agent answers from get_facts only.
+        self._brief = "" if self.request else vault.briefing(
+            self.owner, self.caller_tier, self.contact.get("topics", ["personal"]) if self.contact else None)
         if self.contact:
             name = self.contact["name"]
             start = time.perf_counter()
@@ -132,7 +136,8 @@ class GooseAgent(DataTools, Agent):
         today = f"{now:%A}, {now:%B} {now.day}, {now.year}, {spoken_time(now.hour, now.minute)}"
         return PROMPT.format(now=today, assistant=self.persona.title(), owner=self.owner.title(), caller_tier=self.caller_tier,
                              style="\n".join([render_style(self.pack), *self.pack.get("rules", [])]), agenda=self.agenda.render_prompt_block()) + \
-            ("\n\n# OTHER ASSISTANTS\n" + ", ".join(peers) + "." + network if peers else "") + self._known
+            ("\n\n# OTHER ASSISTANTS\n" + ", ".join(peers) + "." + network if peers else "") + \
+            (f"\n\n# WHAT YOU KNOW ABOUT {self.owner.upper()}\n{self._brief}" if self._brief else "") + self._known
 
     def _peers(self):
         """Personas on this one's network. No network, no peers: their owners do not exist on this call."""
@@ -333,7 +338,7 @@ class GooseAgent(DataTools, Agent):
                 line = farewell(self.pack, self._fillers)
             elif gated:
                 line = confirm_line(self.pack, gated[0], self.owner.title())
-            elif names - {"report_back", "hang_up"} and not words and not (delta and delta.content) and self._filled != self._turn_id:
+            elif names - {"report_back", "hang_up"} - CONFIRM_TOOLS and not words and not (delta and delta.content) and self._filled != self._turn_id:
                 self._filled = self._turn_id     # a second lookup in the same turn stays silent
                 line = tool_filler(self.pack, self._fillers + 1)
             else:
@@ -477,6 +482,7 @@ class GooseAgent(DataTools, Agent):
             ask = {f.id: True} if f and f.id.startswith("ask_") else {}
             self._note({"name": s.get("name") or args["from_name"], "topic": s.get("topic") or args["message"],
                         "details": slots.merged(s["details"], args["message"]) if s.get("details") else args["message"], **ask})
+            self.agenda.update_slots({"confirmed": True})   # the gate already got a yes: asking again at goodbye reads as a bug
             return "message saved"
         if tool == "propose_slot":
             self._act(f"slot {args['when']}")

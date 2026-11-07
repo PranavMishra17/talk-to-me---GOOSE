@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 os.environ.pop("GOOSE_AGENT_TAG", None)     # the real history, not a tagged test folder
 from proxy_core import calls
-from proxy_core.config import data_root, load_config
+from proxy_core.config import require_livekit, data_root, load_config
 
 WIPED = ("calls", "data", "test", calls.CLEARED)
 OUT, PORT = ROOT / ".harness", "8000"
@@ -58,7 +58,7 @@ def services() -> list[dict]:
     workers = [{"name": p, "cmd": [sys.executable, "-m", "app.worker", "dev"], "env": {**env, "GOOSE_PERSONA": p},
                 "ready": "registered worker"} for p in load_config()["personas"]]
     web = {"name": "web", "cmd": [sys.executable, "-m", "uvicorn", "app.api:app", "--port", PORT], "env": env,
-           "ready": "Uvicorn running on", "url": f"http://localhost:{PORT}/demo"}
+           "ready": "Uvicorn running on", "url": f"http://localhost:{PORT}"}
     return [*workers, web]
 
 
@@ -115,9 +115,7 @@ def main():
     if cmd not in ("reset", "clear", "up"):
         raise SystemExit(__doc__)
     if cmd == "up":
-        if load_config()["providers"]["noise_cancellation"]["kind"] == "bvc_telephony" and \
-                not importlib.util.find_spec("livekit.plugins.noise_cancellation"):
-            raise SystemExit("noise cancellation plugin missing, phone calls would crash: run uv sync --extra nc")
+        require_livekit()
         return serve(services(), threading.Event())
     wipe()
     if cmd == "reset":

@@ -13,7 +13,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT), str(ROOT / "scripts")]
 
-import plan
 from proxy_core import latency
 
 WIN = 0.15
@@ -110,7 +109,6 @@ def main():
     ap.add_argument("--a-log")
     ap.add_argument("--b-log")
     ap.add_argument("--rounds", type=int, default=4)
-    ap.add_argument("--no-log", action="store_true")
     x = ap.parse_args()
     t0 = time.time()
     if x.slot == "llm":
@@ -126,8 +124,6 @@ def main():
     print(f"\nA {x.a}: {json.dumps(a)}\nB {x.b}: {json.dumps(b)}")
     print(f"RULE: switch only if B wins p50 by >{WIN:.0%} AND is not worse on tool correctness")
     print(f"DECISION: {'SWITCH to ' + x.b if switch else 'KEEP ' + x.a} ({why})  [{time.time() - t0:.0f} s]")
-    if not x.no_log:
-        plan.log(f"model_ab {x.slot}: A {x.a} {a}; B {x.b} {b}; {'SWITCH to ' + x.b if switch else 'KEEP ' + x.a}: {why}", who="model_ab")
 
 
 if __name__ == "__main__":

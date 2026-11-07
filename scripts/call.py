@@ -19,6 +19,7 @@ from livekit.agents.cli import _legacy
 
 from app.worker import server
 from proxy_core import calls, vault
+from proxy_core.config import require_livekit
 from proxy_core.personality import list_packs
 
 UNKNOWN = "+15550100999"    # in no contact book
@@ -37,6 +38,7 @@ def choose(label, options):
 
 
 def main():
+    require_livekit()
     ap = argparse.ArgumentParser(description="Talk to Goose in the terminal.")
     ap.add_argument("--as", dest="who", help="owner, unknown, or a contact's name")
     ap.add_argument("--pack", help="a personality pack, as in personalities/")

@@ -1,4 +1,4 @@
-"""LiveKit-touching: REWRITE against the starter kit tomorrow (copy the two entrypoints' bodies).
+"""Worker entry point: builds a session per job and wires its events to the agent.
 
 Named agents goose/maya, explicit dispatch only. Commands:
   uv run python -m app.worker console          # talk to Goose in the terminal (spends credits; Ctrl+C when done)
@@ -22,7 +22,7 @@ from app.owner import OwnerAgent
 from app.providers import build_session
 from app.room_floor import RoomFloor
 from proxy_core import calls, vault
-from proxy_core.config import agent_name, load_config, load_env
+from proxy_core.config import require_livekit, agent_name, load_config, load_env
 from proxy_core.personality import list_packs, load_pack
 
 load_env()
@@ -218,4 +218,5 @@ async def entry(ctx: JobContext):
 
 
 if __name__ == "__main__":
+    require_livekit()
     cli.run_app(server)

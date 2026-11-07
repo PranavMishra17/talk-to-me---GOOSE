@@ -9,10 +9,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from proxy_core.config import load_config
+from proxy_core.config import require_livekit, load_config
 
 
 def main():
+    require_livekit()
     personas = load_config()["personas"]
     persona = sys.argv[1] if len(sys.argv) > 1 else ""
     if persona not in personas:

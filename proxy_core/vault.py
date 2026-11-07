@@ -11,6 +11,8 @@ from proxy_core.speech import spoken_day, spoken_span
 DATA = ROOT / "data"
 OWNER = "pranav"              # data/ itself is his; any other owner reads data/<owner>/ and nothing else
 PREFETCH_WORDS = 150         # the bundle rides on every turn's prompt, so it stays short
+BRIEFING_DAYS = 7             # the diary every caller's prompt carries; later dates go through get_calendar
+BRIEFING_ENTRIES = 10
 PHONE_MAX = "family"          # caller ID can be spoofed, so no phone call reaches private data, not even the owner's number
 
 
@@ -186,6 +188,33 @@ def _relevant(rows: list[dict], first: str, topics: list[str]) -> list[dict]:
     return [r for r in rows if first in json.dumps(r) and set(r.get("topics", ["personal"])) & set(topics)]
 
 
+def _diary(dir, tier: str, topics: list[str] | None, today: date, days: int = BRIEFING_DAYS) -> list[str]:
+    """The next few days, one spoken line each. A title shows only if the tier allows it and, for a known contact,
+    it is on a topic they share with the owner: a colleague hears "busy" over a dinner. Public hears busy only."""
+    end = today + timedelta(days=days)
+    rows = sorted((e for e in _load("calendar", dir) if today <= date.fromisoformat(e["start"][:10]) <= end), key=lambda e: e["start"])
+    shown = {e["id"] for e in visible(rows, tier) if topics is None or set(e.get("topics", ["personal"])) & set(topics)} \
+        if tier != "public" else set()
+    return [f"{_span(e['start'], e['end'], today)}: {e['title'] if e['id'] in shown else 'busy'}" for e in rows[:BRIEFING_ENTRIES]]
+
+
+def briefing(owner: str, tier: str, topics: list[str] | None = None, today: date | None = None, dir=None) -> str:
+    """What every caller's prompt carries about the owner, so "is he free Monday?" or "when's best to reach him?"
+    needs no tool. It holds nothing get_profile and get_calendar would not give this caller, and less: a work-only
+    contact gets the public profile, and titles follow the caller's topics as in prefetch."""
+    dir = dir or owner_dir(owner)
+    if dir is None:
+        return ""
+    today = today or datetime.now().date()
+    personal = topics is None or "personal" in topics
+    profile = get_profile(tier if personal else "public", dir)
+    lines = [f"{k.replace('_', ' ')}: {v}" for k, v in profile.items()]
+    diary = _diary(dir, tier, topics, today)
+    lines += [f"Diary, today to {spoken_day(today + timedelta(days=BRIEFING_DAYS), today)}:"] + \
+        ([f"- {d}" for d in diary] or ["- nothing booked"])
+    return "\n".join(lines)
+
+
 def prefetch(owner: str, contact: dict, past_calls: list[dict], today: date | None = None, dir=None, max_words: int = PREFETCH_WORDS) -> str:
     """What the agent knows before it says hello, so its first replies need no tool. Tier-filtered like every read."""
     dir = dir or owner_dir(owner)
@@ -195,15 +224,11 @@ def prefetch(owner: str, contact: dict, past_calls: list[dict], today: date | No
     topics = contact.get("topics", ["personal"])
     newest = lambda name: sorted(_relevant(visible(_load(name, dir), tier), first, topics), key=lambda r: r["date"], reverse=True)
     today = today or datetime.now().date()
-    week = [e for e in _load("calendar", dir) if today <= date.fromisoformat(e["start"][:10]) <= today + timedelta(days=7)]
-    shown = {e["id"] for e in visible(week, tier) if set(e.get("topics", ["personal"])) & set(topics)} if tier != "public" else set()
     lines = [f"Caller: {contact['name']}, the owner's {contact['relationship']}. {contact.get('notes', '')}".strip()]
     lines += [f"Open task: {t['text']}, due {spoken_day(date.fromisoformat(t['due']), today)}." for t in _relevant(visible(_load("tasks", dir), tier), first, topics) if not t["done"]][:2]
     lines += [f"Last call {spoken_day(date.fromisoformat(c['started_at'][:10]), today)}: {c['summary']}" for c in past_calls[:2]]
     lines += [f"Email from {m['from']}: {m['subject']}. {m['body']}" for m in newest("gmail")[:2]]
     lines += [f"Slack {m['channel']}, {m['from']}: {m['text']}" for m in newest("slack")[:2]]
-    lines += ["This week: " + "; ".join(f"{_span(e['start'], e['end'], today)} {e['title'] if e['id'] in shown else 'busy'}"
-                                        for e in sorted(week, key=lambda e: e["start"])[:4])] if week else []
     kept, words = [], 0
     for line in lines:                  # most useful first; what does not fit stays behind the tools
         words += len(line.split())
