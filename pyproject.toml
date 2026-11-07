@@ -17,6 +17,10 @@ dependencies = [
 ]
 # Do NOT add livekit-plugins-turn-detector or livekit-plugins-silero (inference.* replaces them).
 
+[project.optional-dependencies]
+# scripts/optimize_prompt.py only: uv run --extra optimize ...
+optimize = ["dspy>=3.4.1"]
+
 [dependency-groups]
 dev = ["pytest", "pytest-asyncio"]
 
