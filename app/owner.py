@@ -5,6 +5,7 @@ relationship owner in the contact book gets it on the phone too, with the tier c
 import asyncio
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from proxy_core import calls, vault
 from proxy_core.personality import load_pack, owner_hello, render_style
 
 logger = logging.getLogger("goose")
+ASKED = re.compile(r"\b(miss|missed|update|rundown|who called|anyone call|anything new|what's new)\b", re.I)
 BRIEF_TRIES, BRIEF_WAIT_S = 3, 5
 PROMPT = (Path(__file__).parent / "prompts" / "owner.txt").read_text(encoding="utf-8")
 
@@ -45,8 +47,10 @@ class OwnerAgent(DataTools, Agent):
             logger.warning("owner hello stalled, attempt %d", attempt + 1)
             speech.interrupt(force=True)
 
-    def _next_step(self, turns):
+    def _next_step(self, turns, said=""):
         """The update comes after the hello is answered, in words code wrote from the records, so the model cannot invent one."""
+        if turns == 1 and ASKED.search(said):      # code, not the model: offering what they just asked for sounds deaf
+            return f'They asked for the update. Say this, word for word, with no question first: "{self._brief}"'
         if turns == 1:
             return (f'They just answered your hello. Say a few warm words back, then say: "{self._offer}" '
                     f'If they already asked what they need to do or who called, skip that and say this, word for word: "{self._brief}"')
@@ -55,7 +59,8 @@ class OwnerAgent(DataTools, Agent):
 
     async def llm_node(self, chat_ctx, tools, model_settings):
         """Counted from the conversation, not a flag: preemptive generation can run a turn twice."""
-        if note := self._next_step(sum(getattr(i, "role", "") == "user" for i in chat_ctx.items)):
+        users = [i for i in chat_ctx.items if getattr(i, "role", "") == "user"]
+        if note := self._next_step(len(users), (users[-1].text_content or "") if users else ""):
             chat_ctx = chat_ctx.copy()
             chat_ctx.add_message(role="system", content=note)
         async for chunk in Agent.default.llm_node(self, chat_ctx, tools, model_settings):
