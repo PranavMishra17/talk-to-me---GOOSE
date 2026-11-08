@@ -2,6 +2,8 @@
 
 **A voice personal assistant that picks up when you can't.** Goose answers your phone, recognises who's calling, tells each caller only what they're allowed to hear, and briefs you afterwards.
 
+**[See the landing page](https://pranavmishra17.github.io/talk-to-me---GOOSE/)**
+
 Built in a day at the Take2 x Reach Capital voice agent hackathon, on [LiveKit Agents](https://docs.livekit.io/agents/).
 
 ![Goose landing page](docs/screens/landing.png)
@@ -246,6 +248,7 @@ Keep `proxy_core/` free of LiveKit imports, so all of its logic stays testable w
 | `scripts/stage.py` | `up` runs everything, `reset` restores the mock world, `clear` empties it |
 | `scripts/harness.py` | A scripted caller in a real room, with latency per module |
 | `scripts/call.py` | Call an agent from the terminal |
+| `scripts/site.py` | Rebuilds the public landing page in `docs/` from the app's page and personalities |
 | `tests/bench.py`, `scenarios.yaml` | Text scenarios and difficult callers |
 
 ## Developing

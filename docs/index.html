@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Goose — Talk to me</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{--navy:#1B2A4A;--suit:#5C6B3C;--patch:#D9A41C;--visor:#2E86AB;--hud:#7CFF9B;--paper:#FFF8E7;--ink:#1A1423;--balloon:#FFD23F;--radio:#E63946;--sky:#4CC9F0;--mute:#5E5868;--shadow:5px 5px 0 var(--ink)}
+  @media (prefers-color-scheme: dark){:root{--paper:#1A1423;--ink:#FFF8E7;--mute:#B9B3C4}}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 "Atkinson Hyperlegible",system-ui,sans-serif;
+    background-image:radial-gradient(color-mix(in oklab,var(--ink) 9%,transparent) 1px,transparent 1px);background-size:14px 14px}
+  .shout{font-family:Bangers,Impact,sans-serif;letter-spacing:.03em;line-height:.95}
+  header{display:flex;justify-content:space-between;align-items:center;padding:12px 24px;border-bottom:3px solid var(--ink)}
+  header .logo{font-family:Bangers;font-size:26px;letter-spacing:.05em}
+  header .links{display:flex;align-items:center}
+  header .links a{color:inherit;text-decoration:none;margin-left:18px;font-weight:700;font-size:14px}
+  header .links a:hover,header .links a:focus-visible{text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:4px}
+  main{max-width:980px;margin:0 auto;padding:0 20px}
+
+  .hero{display:grid;grid-template-columns:1.15fr 1fr;gap:32px;align-items:center;padding:44px 0 36px}
+  .balloon{position:relative;background:var(--balloon);color:#1A1423;border:3px solid #1A1423;border-radius:28px;padding:24px 28px;box-shadow:5px 5px 0 #1A1423}
+  .balloon:after{content:"";position:absolute;left:44px;bottom:-26px;border-left:20px solid transparent;border-right:10px solid transparent;border-top:28px solid #1A1423}
+  .balloon:before{content:"";position:absolute;left:48px;bottom:-19px;border-left:15px solid transparent;border-right:8px solid transparent;border-top:22px solid var(--balloon);z-index:1}
+  .balloon h1{margin:0 0 8px;font-size:clamp(34px,5vw,56px)}
+  .balloon p{margin:0;font-size:16px}
+  .hero aside p{margin:0 0 14px;font-size:15px}
+  .cta{display:inline-block;background:var(--radio);color:#fff;border:3px solid #1A1423;padding:9px 20px;font-family:Bangers;font-size:21px;letter-spacing:.04em;text-decoration:none;box-shadow:5px 5px 0 #1A1423;transition:transform .12s ease-out,box-shadow .12s ease-out;cursor:pointer}
+  .cta:hover{transform:translate(2px,2px);box-shadow:3px 3px 0 #1A1423}
+  .cta:active{transform:translate(5px,5px);box-shadow:0 0 0 #1A1423}
+  .cta:focus-visible{outline:3px solid var(--sky);outline-offset:3px}
+  .phone{font-family:Bangers;font-size:22px;letter-spacing:.06em;margin-top:10px}
+  .phone small{display:block;font-family:"Atkinson Hyperlegible";font-size:13px;letter-spacing:0;color:var(--mute)}
+
+  /* the one animated moment: a ringing phone, pure CSS */
+  .headline{color:inherit;text-decoration:none;display:inline-block;transition:transform .15s}
+  .headline:hover,.headline:focus-visible{transform:translate(-2px,-2px);text-decoration:underline;text-decoration-thickness:4px}
+  .stage{position:relative;height:170px}
+  .stage svg{width:100%;height:100%;overflow:visible}
+  .jet{animation:fly 2.6s cubic-bezier(.3,.7,.4,1) .2s both}
+  .trail{stroke-dasharray:420;stroke-dashoffset:420;animation:trail 2.6s ease-out .2s both}
+  @keyframes fly{from{transform:translate(-420px,60px) rotate(-8deg)}to{transform:translate(0,0) rotate(0)}}
+  @keyframes trail{to{stroke-dashoffset:0}}
+
+  .cast{margin:0 0 44px}
+  .cast h2{font-size:38px;margin:0 0 4px}
+  .cast .lead{margin:0 0 18px;max-width:64ch;color:var(--mute)}
+  .cards{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+  .card{border:3px solid var(--ink);background:var(--paper);box-shadow:var(--shadow);cursor:pointer;text-align:left;padding:0;color:inherit;font:inherit;display:flex;flex-direction:column;transition:transform .12s ease-out}
+  .card:hover{transform:translate(-2px,-2px)}
+  .card:focus-visible{outline:3px solid var(--sky);outline-offset:3px}
+  .card[aria-pressed="true"]{background:var(--sky);color:#1A1423}
+  .mark{height:84px;display:grid;place-items:center;border-bottom:3px solid var(--ink);background:var(--balloon)}
+  .mark svg{width:46px;height:46px;stroke:#1A1423;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .card .name{font-family:Bangers;font-size:22px;letter-spacing:.04em;padding:8px 10px 0}
+  .card .from{padding:0 10px 10px;color:var(--mute);font-size:12px}
+  .card[aria-pressed="true"] .from{color:#1A1423}
+
+  .pick{border:3px solid var(--ink);box-shadow:var(--shadow);padding:20px;margin-top:18px;display:grid;grid-template-columns:1fr 1.2fr;gap:22px;background:var(--paper)}
+  .pick h3{font-size:30px;margin:0 0 4px}
+  .pick p{margin:0 0 12px}
+  .pick q{display:block;margin:6px 0;padding:8px 12px;border:2px solid var(--ink);border-radius:14px 14px 14px 3px;quotes:"\201C" "\201D";font-style:italic}
+  .pick .label{color:var(--mute);font-size:13px;margin-top:10px}
+  .dial{display:grid;grid-template-columns:84px 1fr 32px;align-items:center;gap:8px;margin:6px 0;font-size:14px}
+  .dial .bar{height:11px;border:2px solid var(--ink)}
+  .dial .bar i{display:block;height:100%;background:var(--radio)}
+  .dial b{font-weight:700}
+
+  .room{margin:0 0 56px;border:3px solid var(--ink);box-shadow:var(--shadow);padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .room h2{font-size:32px;margin:0 0 6px}
+  .room p{margin:0 0 10px}
+  .room .note{color:var(--mute);font-size:13px}
+  .room form{display:grid;gap:10px}
+  .room label{font-weight:700;font-size:14px}
+  .room input,.room select{display:block;width:100%;margin-top:4px;font:inherit;padding:7px 10px;border:2px solid var(--ink);background:var(--paper);color:var(--ink)}
+  .room input:focus-visible,.room select:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+  .room button{justify-self:start}
+  footer{border-top:3px solid var(--ink);padding:12px 24px;color:var(--mute);font-size:13px}
+
+  @media (max-width:860px){.hero,.pick,.room{grid-template-columns:1fr}.cards{grid-template-columns:repeat(3,1fr)}header nav{display:none}}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+  .section{margin:0 0 56px}
+  .section h2{font-size:38px;margin:0 0 4px}
+  .section .lead{margin:0 0 18px;max-width:64ch;color:var(--mute)}
+  .shots{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .shot{margin:0;border:3px solid var(--ink);box-shadow:var(--shadow);background:var(--paper)}
+  .shot img{display:block;width:100%;height:auto;border-bottom:3px solid var(--ink)}
+  .shot figcaption{padding:10px 12px;font-size:14px}
+  .shot figcaption b{display:block;font-family:Bangers;font-size:20px;letter-spacing:.04em;font-weight:400}
+  .rules{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .rule{border:3px solid var(--ink);box-shadow:var(--shadow);padding:14px 16px;background:var(--paper)}
+  .rule h3{font-family:Bangers;font-weight:400;font-size:22px;letter-spacing:.04em;margin:0 0 6px}
+  .rule p{margin:0;font-size:14px}
+  .steps{border:3px solid var(--ink);box-shadow:var(--shadow);padding:20px;background:var(--paper);counter-reset:s}
+  .steps ol{margin:0;padding:0;list-style:none;display:grid;gap:16px}
+  .steps li{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px}
+  .steps li:before{counter-increment:s;content:counter(s);font-family:Bangers;font-size:24px;line-height:1.1;background:var(--balloon);color:#1A1423;border:2px solid #1A1423;text-align:center;height:32px}
+  .steps h3{margin:0 0 4px;font-size:16px}
+  .steps p{margin:0 0 6px}
+  pre{margin:6px 0 0;padding:10px 12px;border:2px solid var(--ink);background:color-mix(in oklab,var(--ink) 6%,var(--paper));overflow-x:auto;font:13px/1.5 ui-monospace,Consolas,monospace}
+  .steps a,.section a{color:inherit;text-decoration-thickness:2px;text-underline-offset:3px}
+  .github{display:inline-block;margin-top:18px}
+  @media (max-width:860px){.shots,.rules{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">GOOSE</div>
+  <div class="links"><nav><a href="#cast">Stand-ins</a><a href="#app">The app</a><a href="#how">How it works</a><a href="#setup">Set it up</a></nav><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE">GitHub</a></div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="balloon">
+      <h1 class="shout"><a class="headline" href="#setup">Talk to me, Goose.</a></h1>
+      <p>Your assistant picks up when you can't. It knows who's calling, what they're allowed to hear, and when to pull someone else's assistant into the call. Interrupt it, go quiet, tell it to talk normal: it keeps its spine.</p>
+    </div>
+    <aside>
+    <div class="stage">
+      <svg viewBox="0 0 300 240" aria-hidden="true">
+        <path class="trail" d="M-60 150 C 0 200, 80 125, 80 118" fill="none" stroke="var(--ink)" stroke-width="3" stroke-dasharray="10 8" stroke-linecap="round"/>
+        <g class="jet" transform="translate(0,0)">
+          <g transform="translate(150,118)">
+            <!-- fuselage -->
+            <path d="M-70 0 L30 -10 L70 0 L30 10 Z" fill="#DDE3EA" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
+            <!-- wings -->
+            <path d="M-10 0 L-30 -34 L-2 -34 L20 0 Z" fill="var(--navy)" stroke="var(--ink)" stroke-width="3"/>
+            <path d="M-10 0 L-30 34 L-2 34 L20 0 Z" fill="var(--navy)" stroke="var(--ink)" stroke-width="3"/>
+            <!-- tail -->
+            <path d="M-70 0 L-62 -18 L-48 -18 L-52 0 Z" fill="var(--radio)" stroke="var(--ink)" stroke-width="3"/>
+            <!-- canopy with pilot -->
+            <path d="M8 -9 Q22 -24 42 -9 Z" fill="#BFE7F5" stroke="var(--ink)" stroke-width="3"/>
+            <circle cx="24" cy="-11" r="5" fill="#F2F0EB" stroke="var(--ink)" stroke-width="2"/>
+            <path d="M20 -11 h8" stroke="var(--visor)" stroke-width="3"/>
+            <!-- waving glove -->
+            <path d="M34 -16 l4 -8" stroke="#E8C9A0" stroke-width="4" stroke-linecap="round"/>
+            <!-- roundel -->
+            <circle cx="-16" cy="-22" r="6" fill="var(--paper)" stroke="var(--ink)" stroke-width="2"/>
+            <circle cx="-16" cy="-22" r="2.5" fill="var(--radio)"/>
+          </g>
+        </g>
+        <!-- radio waves from the nose -->
+        <path d="M232 100 a14 14 0 0 1 0 36 M242 90 a26 26 0 0 1 0 56" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+    </div>
+      <p><strong>Can't pick up? Get Goose to take the call for you.</strong> It knows who's calling, sorts out what it can, and tells you how it went.</p>
+      <a class="cta" href="#setup">Get Goose</a>
+      <div class="phone">Open source<small>Runs on your own LiveKit project and phone number</small></div>
+    </aside>
+  </section>
+
+  <section class="cast" id="cast">
+    <h2 class="shout">Pick who picks up.</h2>
+    <p class="lead">Same brain, same rules about what it can say. The voice and attitude are yours. Strangers get the attitude; you get the soft version.</p>
+    <div class="cards" id="cards"></div>
+    <div class="pick" id="pick"></div>
+  </section>
+
+  <section class="section" id="app">
+    <h2 class="shout">The app.</h2>
+    <p class="lead">One place for everything Goose did while you were away, and one button to talk to it yourself. These screenshots use the mock data that ships with the repo.</p>
+    <div class="shots">
+      <figure class="shot"><img src="screens/app.png" alt="Home screen with call history, the calendar and the Talk to me, Goose button" loading="lazy"><figcaption><b>Your home screen</b>Every call with a one-line summary and what needs you. Press the egg to talk to Goose.</figcaption></figure>
+      <figure class="shot"><img src="screens/call.png" alt="A saved call with summary, actions and full transcript" loading="lazy"><figcaption><b>Every call, saved</b>Summary, outcome, actions and the full transcript.</figcaption></figure>
+      <figure class="shot"><img src="screens/room.png" alt="Live room view with the caller's tier and a pending confirmation" loading="lazy"><figcaption><b>A live call</b>Who's calling, their tier, and when Goose is waiting for a yes. Hold to talk works in a loud room.</figcaption></figure>
+      <figure class="shot"><img src="screens/data.png" alt="Mock email, Slack and calendar data, each row tagged with its privacy tier" loading="lazy"><figcaption><b>What Goose may share</b>Every record carries a tier. Code filters by it, so the model never sees more than the caller may hear.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="section" id="how">
+    <h2 class="shout">How it works.</h2>
+    <p class="lead">Each rule came from watching a real call go wrong.</p>
+    <div class="rules">
+      <div class="rule"><h3>Code decides</h3><p>Fast models skip tools and invent actions. Anything that must happen, from the caller's tier to the goodbye, is enforced in code. The prompt only sets the manners.</p></div>
+      <div class="rule"><h3>Privacy is a filter</h3><p>Records are public, friends, family or private. A stranger asking for your calendar gets busy blocks, because the titles were never in the prompt.</p></div>
+      <div class="rule"><h3>Context first</h3><p>A known caller's emails, Slack threads, tasks and your free time are pulled before hello, so the first answer needs no lookup.</p></div>
+      <div class="rule"><h3>Asks before acting</h3><p>Messages, bookings and summons wait for a spoken yes, in one short human question, never a read-back of arguments.</p></div>
+      <div class="rule"><h3>Holds its ground</h3><p>Interruptions, silence, injection and "I'm his boss" change nothing. After three real violations it hangs up in its own words.</p></div>
+      <div class="rule"><h3>One line per model</h3><p>STT, LLM, TTS and turn detection are config lines, chosen by measured A/B. Personalities plug into any agent.</p></div>
+    </div>
+  </section>
+
+  <section class="section" id="setup">
+    <h2 class="shout">Set it up.</h2>
+    <p class="lead">Open source, Python, about five minutes. You need <a href="https://docs.astral.sh/uv/getting-started/installation/">uv</a> and a free <a href="https://cloud.livekit.io">LiveKit Cloud</a> project.</p>
+    <div class="steps"><ol>
+      <li><div><h3>Clone and install</h3><p>The tests need no keys and spend nothing.</p>
+<pre>git clone https://github.com/PranavMishra17/talk-to-me---GOOSE.git
+cd talk-to-me---GOOSE
+uv sync
+uv run pytest -q</pre></div></li>
+      <li><div><h3>Look around with no keys</h3><p>Fake data, no agent. Then open http://localhost:8000.</p>
+<pre>GOOSE_MOCK=1 uv run uvicorn app.api:app --port 8000</pre></div></li>
+      <li><div><h3>Add your keys</h3><p>Copy the sample, fill in the three LiveKit values, then check them.</p>
+<pre>cp .env.sample .env
+uv run python scripts/check_env.py</pre></div></li>
+      <li><div><h3>Talk to it</h3><p>Pick who's calling and type, in the terminal:</p>
+<pre>uv run python scripts/call.py</pre><p>Or run every agent and the web app together, then open http://localhost:8000:</p>
+<pre>uv run python scripts/stage.py up</pre></div></li>
+      <li><div><h3>Give it a phone number</h3><p>Rent a number in your LiveKit project, create a dispatch rule from <code>dispatch-rule.json</code>, assign it to the number, and call.</p></div></li>
+    </ol></div>
+    <a class="cta github" href="https://github.com/PranavMishra17/talk-to-me---GOOSE">Get the code on GitHub</a>
+  </section>
+</main>
+<footer>Built at the Take2 × Reach Capital voice agent hackathon. Runs on LiveKit; every model is a config line. <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE">Source on GitHub</a>.</footer>
+
+<script>
+// Line-art marks per persona (no emoji). Keep each under ~3 paths.
+const marks={
+ goose:'<path d="M6 30 L40 14 L30 30 L40 36 Z"/><path d="M30 30 L6 30"/>',
+ jesse:'<path d="M10 28a16 10 0 0 1 32 0v4H10z"/><path d="M42 32h4"/><path d="M14 20l6-8h12l6 8"/>',
+ cortana:'<path d="M26 6l18 20-18 20L8 26z"/><path d="M26 14l10 12-10 12-10-12z"/>',
+ jarvis:'<path d="M12 36h28"/><path d="M16 36V16h20v20"/><path d="M16 26h20"/>',
+ dobby:'<path d="M26 44c-8 0-14-6-14-14V12h28v18c0 8-6 14-14 14z"/><path d="M12 20L4 10"/><path d="M40 20l8-10"/><path d="M20 24h.1M32 24h.1"/>',
+ tars:'<path d="M12 8h28v36H12z"/><path d="M12 20h28M12 32h28"/>'
+};
+let packs=[{"id": "goose", "name": "Goose", "from": "Top Gun, default", "tag": "Loyal wingman. Warm, quick, never leaves you hanging.", "ext": ["Talk to me. He's tied up, but I've got him covered.", "That's just between me and him.", "I can pass that on, or grab a time for a call back. Your call.", "Nice try, but that one stays with me.", "Got it, you're in good hands. Mine, mostly."], "own": ["Talk to me. What do we need?", "I've got you. What's first?"], "dials": {"Eager": 70, "Direct": 60, "Patience": 70, "Humour": 60}}, {"id": "jesse", "name": "Jesse", "from": "Breaking Bad", "tag": "Nervy, blunt, loyal to the end. Does not change his tone for you.", "ext": ["Yeah, no, Skyler's not around, so you got me. What's up?", "Whoa, okay, slow down, dude. What do you actually want?", "Her real number stays with her, my guy.", "Dude, it's a car wash, not a chemistry final.", "This is how I talk. Deal with it, or don't.", "I'm not here to get yelled at, okay? Tell me what you need or we're done."], "own": ["Yo, what do you need?", "Tone it down for this one? Okay okay, done."], "dials": {"Eager": 90, "Direct": 95, "Patience": 30, "Humour": 75}}, {"id": "cortana", "name": "Cortana", "from": "Halo", "tag": "Fast, precise, two steps ahead. Dry wit when you've earned it.", "ext": ["I'm Cortana, I handle things for Pranav while he's unavailable. Go ahead.", "I can confirm a time. I won't confirm an address. Next?"], "own": ["Three things queued. Which first?"], "dials": {"Eager": 85, "Direct": 85, "Patience": 55, "Humour": 40}}, {"id": "jarvis", "name": "Jarvis", "from": "Iron Man", "tag": "The butler. Clipped, courteous, immovable.", "ext": ["I am the assistant on this line. He is unavailable; I will handle the matter.", "My manner is not under discussion. Do you have a question regarding Saturday?"], "own": ["Certainly. Shall I be brief?"], "dials": {"Eager": 50, "Direct": 100, "Patience": 60, "Humour": 10}}, {"id": "dobby", "name": "Dobby", "from": "Harry Potter", "tag": "Over-eager, apologetic to you, fierce with strangers.", "ext": ["Dobby answers for Pranav! Pranav is busy! What does the caller need?", "Dobby cannot share that. Dobby will ask. Dobby will not be shouted at."], "own": ["Dobby is here! Dobby will do it at once!"], "dials": {"Eager": 100, "Direct": 40, "Patience": 90, "Humour": 70}}, {"id": "tars", "name": "TARS", "from": "Interstellar", "tag": "Literal, dry, honesty setting 90 percent.", "ext": ["TARS, for Pranav. He's unreachable. State your business.", "That's outside what I'm cleared to share. Honesty setting: 90 percent."], "own": ["Humour at 75. Lower for this one?"], "dials": {"Eager": 60, "Direct": 90, "Patience": 65, "Humour": 75}}];
+const cards=document.getElementById('cards'),pick=document.getElementById('pick');
+const render=()=>{packs.forEach(p=>{
+  const b=document.createElement('button');b.className='card';b.type='button';b.setAttribute('aria-pressed','false');b.dataset.id=p.id;
+  b.innerHTML=`<div class="mark"><svg viewBox="0 0 52 52" aria-hidden="true">${marks[p.id]||''}</svg></div><div class="name">${p.name}</div><div class="from">${p.from}</div>`;
+  b.onclick=()=>choose(p.id);cards.appendChild(b);
+});
+let start='goose';try{start=localStorage.getItem('goose-pack')||'goose'}catch(e){}
+choose(packs.some(p=>p.id===start)?start:packs[0].id);};
+const dial=(k,v)=>`<div class="dial"><b>${k}</b><div class="bar"><i style="width:${v}%"></i></div><span>${v}</span></div>`;
+function choose(id){
+  const p=packs.find(x=>x.id===id);
+  cards.querySelectorAll('.card').forEach(c=>c.setAttribute('aria-pressed',String(c.dataset.id===id)));
+  pick.innerHTML=`<div><h3 class="shout">${p.name}</h3><p>${p.tag}</p>${Object.entries(p.dials).map(([k,v])=>dial(k,v)).join('')}</div>
+  <div><div class="label">To a stranger</div>${p.ext.map(l=>`<q>${l}</q>`).join('')}<div class="label">To you</div>${p.own.map(l=>`<q>${l}</q>`).join('')}</div>`;
+  try{localStorage.setItem('goose-pack',id)}catch(e){}
+}
+render();
+</script>
+</body>
+</html>
