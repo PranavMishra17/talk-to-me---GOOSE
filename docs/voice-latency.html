@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Voice Latency Handoff</title>
+<style>
+  :root{color-scheme:light dark;--bg:#FFFDF7;--ink:#1A1423;--mute:#5E5868;--line:#D9D3C7;--hi:#FFF1B8;--code:#F2EEE4;--ok:#1E7B4C;--bad:#B3261E}
+  @media (prefers-color-scheme: dark){:root{--bg:#16131C;--ink:#F3EFE6;--mute:#ADA6B8;--line:#3A3446;--hi:#3D3519;--code:#221E2A;--ok:#6FD39C;--bad:#FF8A80}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,sans-serif}
+  main{max-width:900px;margin:0 auto;padding:28px 18px 80px}
+  h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+  h2{font-size:22px;margin:40px 0 10px;padding-top:14px;border-top:2px solid var(--line)}
+  h3{font-size:17px;margin:22px 0 6px}
+  p,li{max-width:76ch}
+  .sub{color:var(--mute);margin:0 0 18px}
+  .key{background:var(--hi);border-left:4px solid var(--ink);padding:12px 16px;margin:16px 0}
+  table{border-collapse:collapse;width:100%;margin:10px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:var(--code)}
+  .wrap{overflow-x:auto}
+  code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.9em;overflow-wrap:anywhere}
+  pre{background:var(--code);padding:12px;border-radius:6px;overflow-x:auto;font-size:13px}
+  pre code{background:none;padding:0}
+  details{border:1px solid var(--line);border-radius:6px;padding:8px 12px;margin:10px 0}
+  summary{cursor:pointer;font-weight:600}
+  .win{color:var(--ok);font-weight:600}.lose{color:var(--bad);font-weight:600}
+  a{color:inherit;text-underline-offset:3px}
+</style>
+</head>
+<body>
+<main>
+<h1>What we learned building a fast LiveKit voice agent</h1>
+<p class="sub">From the Goose project, 6 to 11 November 2026: one LiveKit Agents worker answering real phone calls and web rooms. Written as a handoff for other teams to take what they want. Source: <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/tree/aed43a1">talk-to-me---GOOSE at aed43a1</a>.</p>
+
+<div class="key">
+<b>The short version.</b> On LiveKit Inference with livekit-agents 1.8.11, our fastest reliable pipeline was <b>Deepgram Nova-3 STT, the LiveKit audio turn detector, Gemma 4 31B, and Cartesia Sonic 3.5</b>, with preemptive generation on but its retries capped at one. That gave about <b>0.9 to 1.8 s from the end of the caller's speech to the first agent audio</b>. The biggest wins were not model swaps alone. They came from measuring every module separately, starting side work on the STT final in parallel with the LLM, pulling context before the call instead of using tools, and having code, not the model, speak the short lines that would otherwise be silence.
+</div>
+
+<p><b>How strong is the evidence?</b> Most numbers come from a scripted caller with a synthetic voice, in real LiveKit rooms, usually one run of a few turns per change, on a Windows laptop against LiveKit Cloud US East. Treat them as directional, not as benchmarks. Synthetic speech is known to fool audio end-of-turn models, so the endpointing numbers in particular need checking by ear on a real phone. Model A/Bs used <code>scripts/model_ab.py</code> with 5 to 24 turns per side.</p>
+
+<h2>1. The stack we chose, and why</h2>
+<div class="wrap"><table>
+<tr><th>Slot</th><th>Chosen</th><th>Measured against</th><th>Result</th></tr>
+<tr><td>STT</td><td><code>deepgram/nova-3</code></td><td><code>assemblyai/universal-3-6-pro</code> (the starter default)</td><td><span class="win">228 ms</span> vs 365 ms finalize, p50</td></tr>
+<tr><td>TTS</td><td><code>cartesia/sonic-3.5</code></td><td><code>fishaudio/s2.1-pro</code> (the starter default)</td><td><span class="win">160 ms</span> vs 666 ms first audio, p50. Live calls: 120 to 160 ms first byte.</td></tr>
+<tr><td>LLM</td><td><code>google/gemma-4-31b-it</code></td><td><code>gemini-2.5-flash-lite</code>, <code>gemini-3.1-flash-lite</code>, <code>gemini-3.5-flash-lite</code>, <code>gemini-3.8-flash</code></td><td>Gemma: 224 to 230 ms p50, 576 to 1134 ms p90, 0 wrong tool calls in 24 turns. 2.5-flash-lite: 245 / 885 ms. 3.1-flash-lite: 663 / 843 ms. <span class="lose">3.8-flash: 1.9 to 3.7 s first token</span> with reasoning, so avoid it for voice.</td></tr>
+<tr><td>Turn detection</td><td><code>inference.TurnDetector()</code>, audio</td><td>Flux (<code>deepgram/flux-general-en</code> with <code>turn_detection: stt</code>) is wired as a one-line toggle but was never A/B tested by ear</td><td>End-of-turn model inference about 25 to 70 ms. The cost is the endpointing wait, below.</td></tr>
+<tr><td>VAD</td><td><code>silero</code> on Inference</td><td>none</td><td>About 0.5 ms per inference</td></tr>
+<tr><td>Noise</td><td><code>BVCTelephony</code> for SIP, <code>BVC</code> for browsers</td><td>none</td><td>Chosen per participant kind in one callback</td></tr>
+</table></div>
+<p>Our rule for switching a default: the challenger must win p50 by more than 15% <b>and</b> be no worse on tool correctness. A faster model that skips tool calls is slower in practice, because the call has to recover. <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/scripts/model_ab.py">scripts/model_ab.py</a></p>
+<p>Quality mattered too. On the same question about a work PR, OpenRouter's <code>gemini-2.5-flash-lite</code> answered "I can look into that for you", while Gemma answered with the actual status from the context we had pre-loaded. We kept Gemma.</p>
+
+<h2>2. Where the time goes in a turn</h2>
+<p>From the per-module table our harness prints for every call. Values are typical ranges across real-room runs.</p>
+<div class="wrap"><table>
+<tr><th>Module</th><th>Typical</th><th>Notes</th></tr>
+<tr><td>VAD inference</td><td>0.4 to 0.7 ms</td><td>Negligible</td></tr>
+<tr><td>STT, end of speech to transcript</td><td>140 to 460 ms</td><td>Nova-3</td></tr>
+<tr><td>End-of-turn model</td><td>25 to 70 ms</td><td>Audio turn detector</td></tr>
+<tr><td>Endpointing wait</td><td>350 to 470 ms, up to 1.5 s</td><td>The longest part. It grows to <code>max_delay</code> when the model thinks the sentence is unfinished.</td></tr>
+<tr><td>Our turn hook</td><td>0 to 120 ms</td><td>Echo guard, decider, floor and gates. Capped by design, see section 3.</td></tr>
+<tr><td>LLM first token</td><td>usually 150 to 300 ms</td><td>Spikes to about 1 s on tool turns</td></tr>
+<tr><td>Tool turn</td><td>about 1.3 to 2 s</td><td>Two LLM calls plus the tool. Always covered by a spoken line, see section 4.</td></tr>
+<tr><td>TTS first byte</td><td>120 to 160 ms</td><td>Sonic 3.5</td></tr>
+<tr><td><b>End of speech to first agent audio</b></td><td><b>0.9 to 1.8 s</b></td><td>Measured at the caller, by the harness</td></tr>
+</table></div>
+<p>The SDK's own end-to-end figure was often 0.3 to 0.9 s lower than what the caller heard. Measure at the listener, not only in the SDK.</p>
+
+<h2>3. The changes that mattered most</h2>
+
+<h3>Measure every module, every run</h3>
+<p>We log every <code>metrics_collected</code> event as one JSON line, then group them per caller turn by <code>speech_id</code>, not by arrival order. Preemptive generation runs before the turn commits, so arrival order puts its LLM call in the previous turn's row. That was a real bug in our first table.</p>
+<ul>
+<li><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/app/worker.py#L158">app/worker.py#L158</a>: the metrics hook</li>
+<li><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/proxy_core/latency.py">proxy_core/latency.py</a>: one row per turn</li>
+<li><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/scripts/harness.py">scripts/harness.py</a>: a scripted caller in a real room, measuring first audio at the listener</li>
+</ul>
+
+<h3>Shortening endpointing alone made things slower</h3>
+<p>Cutting <code>max_delay</code> from 2.0 to 1.2 s made first audio <b>worse</b>, from 3.8 s to 5.2 to 5.9 s, on the slow LLM of the time. Preemptive generation had been hiding the LLM's latency inside the endpointing wait. Shorten the wait and the LLM's own time shows through. Fix the LLM first. We settled on <code>min_delay 0.3</code>, <code>max_delay 1.5</code>.</p>
+
+<h3>Cap preemptive generation's retries</h3>
+<p>With default retries, preemptive generation spent <b>3 to 4 LLM calls per turn</b> as the transcript changed, which burned credit and widened the slow tail. We set <code>max_retries: 1</code> and kept <code>preemptive_tts: false</code>.</p>
+
+<h3>Run side decisions in parallel with the LLM, with a hard cap</h3>
+<p>We use a small classifier, Jev on OpenRouter's decisions endpoint, for addressee, tone and injection. Two findings:</p>
+<ul>
+<li><b>Reuse the HTTP connection.</b> One shared <code>httpx.Client</code> took the median from <b>951 ms to 81 ms</b>. Nearly all of that was TLS setup per call. <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/proxy_core/decider.py#L8">proxy_core/decider.py#L8</a></li>
+<li><b>Start it on the STT final, not in the turn hook.</b> It then runs during the endpointing wait, beside the preemptive LLM call. The hook waits at most 300 ms for it, then falls back to keyword rules. In live calls the hook added 0 to 120 ms. <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/app/agent.py#L210">app/agent.py#L210</a> and <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/app/agent.py#L215">#L215</a></li>
+</ul>
+
+<h3>Pull context before the call instead of using tools</h3>
+<p>A tool turn costs about 1.3 to 2 s. For a known caller we build a short, permission-filtered bundle before the greeting: recent emails and messages with them, open tasks, past calls and free/busy time. It stays around 150 words, which kept LLM first token at about 250 ms. The first answer then needs no tool. Tools remain for going deeper. <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/proxy_core/vault.py#L201">proxy_core/vault.py#L201</a>, <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/proxy_core/vault.py#L218">#L218</a></p>
+
+<h2>4. Make code speak where silence would happen</h2>
+<p>Fast models were unreliable at this, every time we tested it. Gemini flash-lite models called tools with no words first on most tool turns, ignored a prompt telling them to call a tool, and even ignored a forced <code>tool_choice</code>. One model hung up without a goodbye, and another kept talking after hanging up. So we put these in code, in <code>llm_node</code>: <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/app/agent.py#L295">app/agent.py#L295</a></p>
+<ul>
+<li><b>A filler line</b> when the model starts a lookup with no words, such as "One sec", flushed with <code>FlushSentinel</code> so TTS starts at once. Instant actions get no filler: "Let me pull that up" before simply saving a message sounds wrong.</li>
+<li><b>The goodbye before hanging up</b>, spoken by code. <code>end_call</code> must return <code>None</code>: any tool output made the model speak again after the hang-up.</li>
+<li><b>Confirmation questions</b> before actions, as one short line. Never read tool arguments back. Callers called that robotic.</li>
+</ul>
+<p>Also normalise text before TTS. Dates, times and phone numbers read as digits sound wrong on a call. We rewrite them in <code>tts_node</code>, holding text only until the next clause break. <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/proxy_core/speech.py#L143">proxy_core/speech.py#L143</a></p>
+
+<h2>5. Settings, in one place</h2>
+<pre><code>stt: deepgram/nova-3                     # LiveKit Inference
+llm: google/gemma-4-31b-it
+tts: cartesia/sonic-3.5
+vad: silero
+turn_detection: inference.TurnDetector()  # audio
+endpointing: {mode: dynamic, min_delay: 0.3, max_delay: 1.5}
+interruption: {mode: adaptive, min_duration: 0.5, min_words: 0,
+               false_interruption_timeout: 1.5, resume_false_interruption: true}
+preemptive_generation: {enabled: true, preemptive_tts: false, max_retries: 1}
+user_turn_limit: {max_duration: 30.0}
+user_away_timeout: 6          # first silence nudge
+noise: BVCTelephony for SIP participants, BVC for browser participants</code></pre>
+<p><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/config.yaml">config.yaml</a>, <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/proxy_core/session_config.py#L4">proxy_core/session_config.py#L4</a>, <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/app/providers.py#L75">app/providers.py#L75</a></p>
+
+<h2>6. Traps that cost us time</h2>
+<details open><summary>Testing</summary>
+<ul>
+<li><b>Text turns skip <code>on_user_turn_completed</code>.</b> That covers <code>session.run(user_input=...)</code>, <code>lk agent debugger</code> and <code>lk agent simulate text</code>. Anything in that hook (gates, injection checks, hang-up logic) is only proved in a real room. Our text bench passed injection tests that the hook never ran.</li>
+<li><b>Synthetic speech fools the audio end-of-turn model.</b> Trust a harness for LLM, TTS and hook numbers, not for endpointing or turn-taking. Check those by ear on a real phone.</li>
+<li><b>Real-room tests from several developers collide</b> when workers share an agent name on one LiveKit project: a dispatch lands on any of them. We give every test worker a private agent name suffix. Only one untagged worker per project should serve the phone.</li>
+<li><b>Test what passed offline in a real room.</b> Our hang-up logic passed every unit test and never fired in a live call, because it counted the model's refusal wording.</li>
+</ul></details>
+<details open><summary>Running on LiveKit</summary>
+<ul>
+<li><b>Use <code>dev</code>, not self-hosted <code>start</code>.</b> According to the LiveKit docs, self-hosted <code>start</code> quietly drops adaptive interruption to VAD-only and uses a smaller turn detector.</li>
+<li><b>The Inference credit cap covers STT, LLM and TTS together.</b> When it ran out, every call failed with 429 <code>MaxGatewayCredits</code>, and switching LLM did not help. Keep a one-line switch to your own provider keys. We kept OpenRouter and Cartesia ready and proved them in a real room, at 0.84 to 2.04 s first audio. Separately, Gemma on Inference has a 100 requests per minute limit, and our test sessions hit 94 of it.</li>
+<li><b>Attaching a dispatch rule to a number from the CLI</b> failed with <code>invalid_argument</code> on two projects. Assigning it in the dashboard worked.</li>
+<li><b>Prime the audio resampler on Windows.</b> Twelve resamplers racing at first use crashed or hung 3 of 105 cold processes with a native soxr assertion dialog, and 0 of 380 after warming one resampler alone at import. The dialog also blocks the process, so we exit it with a code a supervisor restarts. <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/app/native.py">app/native.py</a></li>
+<li><b>A native crash takes down the whole worker</b> and every call in it, so run it under a restart loop. <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/scripts/stage.py">scripts/stage.py</a></li>
+</ul></details>
+<details open><summary>Web callers</summary>
+<ul>
+<li><b>Loud rooms break open-mic web calls</b>, even with earphones. We added hold-to-talk, where the browser tells the worker over RPC to commit the turn on release (<a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/app/worker.py#L92">app/worker.py#L92</a>), and a typing mode as a fallback. Typed turns must run the same hooks as spoken ones.</li>
+<li><b>Chrome can block agent audio</b> when the call starts without a click on that page. Handle <code>AudioPlaybackStatusChanged</code> and offer a button that calls <code>room.startAudio()</code>.</li>
+<li><b>Echo:</b> a speakerphone feeds the agent's voice back as caller speech. We drop a caller segment that heavily overlaps the agent's last 3 s of speech, with a 4-word minimum so short replies pass. <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/proxy_core/echo.py#L12">proxy_core/echo.py#L12</a></li>
+</ul></details>
+
+<h2>7. What we did not test</h2>
+<ul>
+<li>Flux turn detection against the audio turn detector, by ear</li>
+<li>Realtime or speech-to-speech models</li>
+<li>Large samples: none of these numbers has more than a few dozen turns behind it</li>
+<li>Endpointing on real phone audio at scale</li>
+</ul>
+
+<h2>Where to look in the code</h2>
+<div class="wrap"><table>
+<tr><th>What</th><th>File</th></tr>
+<tr><td>Session and pipeline construction</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/app/providers.py">app/providers.py</a></td></tr>
+<tr><td>Worker entry, metrics, noise, caller ID, hold-to-talk</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/app/worker.py">app/worker.py</a></td></tr>
+<tr><td>The turn hook, <code>llm_node</code>, <code>tts_node</code>, hang-up</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/app/agent.py">app/agent.py</a></td></tr>
+<tr><td>Per-turn latency table</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/proxy_core/latency.py">proxy_core/latency.py</a></td></tr>
+<tr><td>Real-room harness</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/scripts/harness.py">scripts/harness.py</a></td></tr>
+<tr><td>Model A/B with the switching rule</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/scripts/model_ab.py">scripts/model_ab.py</a></td></tr>
+<tr><td>Pre-call context</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/proxy_core/vault.py">proxy_core/vault.py</a></td></tr>
+<tr><td>Sidecar decider</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/proxy_core/decider.py">proxy_core/decider.py</a></td></tr>
+<tr><td>Spoken dates, times and numbers</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/proxy_core/speech.py">proxy_core/speech.py</a></td></tr>
+<tr><td>All settings</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/aed43a1/config.yaml">config.yaml</a></td></tr>
+</table></div>
+</main>
+</body>
+</html>
