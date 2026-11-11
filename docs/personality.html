@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Modular Personality Handoff</title>
+<style>
+  :root{color-scheme:light dark;--bg:#FFFDF7;--ink:#1A1423;--mute:#5E5868;--line:#D9D3C7;--hi:#FFF1B8;--code:#F2EEE4}
+  @media (prefers-color-scheme: dark){:root{--bg:#16131C;--ink:#F3EFE6;--mute:#ADA6B8;--line:#3A3446;--hi:#3D3519;--code:#221E2A}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,sans-serif}
+  main{max-width:900px;margin:0 auto;padding:28px 18px 80px}
+  h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+  h2{font-size:22px;margin:40px 0 10px;padding-top:14px;border-top:2px solid var(--line)}
+  h3{font-size:17px;margin:22px 0 6px}
+  p,li{max-width:76ch}
+  .sub{color:var(--mute);margin:0 0 18px}
+  .key{background:var(--hi);border-left:4px solid var(--ink);padding:12px 16px;margin:16px 0}
+  table{border-collapse:collapse;width:100%;margin:10px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:var(--code)}
+  .wrap{overflow-x:auto}
+  code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.9em;overflow-wrap:anywhere}
+  pre{background:var(--code);padding:12px;border-radius:6px;overflow-x:auto;font-size:13px}
+  pre code{background:none;padding:0}
+  details{border:1px solid var(--line);border-radius:6px;padding:8px 12px;margin:10px 0}
+  summary{cursor:pointer;font-weight:600}
+  a{color:inherit;text-underline-offset:3px}
+</style>
+</head>
+<body>
+<main>
+<h1>How we made personality a plug-in</h1>
+<p class="sub">From the Goose voice assistant, November 2026. How one agent can wear any personality and voice, chosen per user or per call, without touching the logic that keeps it safe and fast. Source: <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/tree/0048026">talk-to-me---GOOSE at 0048026</a>. A companion to the <a href="voice-latency.html">voice latency handoff</a>.</p>
+
+<div class="key">
+<b>The short version.</b> A personality is a data file, never code. One YAML file holds everything a personality can change: its voice IDs, its style, its example lines, every line code speaks for it, and its settings dials. The agent's logic reads those through about ten small accessor functions and never branches on which personality is active. So switching personality or voice is one setting, adding a personality is one new file, and privacy, confirmations, tools, hang-up rules and latency work stay exactly the same.
+</div>
+
+<h2>1. Three layers that never reach into each other</h2>
+<div class="wrap"><table>
+<tr><th>Layer</th><th>Answers</th><th>Lives in</th><th>Changed by</th></tr>
+<tr><td><b>Persona</b></td><td>Whose assistant is this, what is it called, which agent answers, who it can summon</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/config.yaml">config.yaml</a> <code>personas:</code></td><td>Setup, rarely</td></tr>
+<tr><td><b>Pack (personality)</b></td><td>How it sounds: voice, style, wording, character rules, dials</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/tree/0048026/personalities">personalities/*.yaml</a></td><td>The user, any time, per call</td></tr>
+<tr><td><b>Agent logic</b></td><td>What it may share, when it acts, when it hangs up, how fast it is</td><td><code>app/</code> and <code>proxy_core/</code></td><td>Engineers only</td></tr>
+</table></div>
+<p>A persona names a default pack, for example <code>goose: {owner: pranav, pack: goose}</code>, but any pack can be put on any persona. That's how Goose, Pranav's assistant, can answer as Jesse for one call and as Jarvis for the next.</p>
+
+<h2>2. What a pack contains</h2>
+<p>Every field is checked when the pack loads, so a broken pack fails at startup instead of mid-call: <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/proxy_core/personality.py#L10">proxy_core/personality.py#L10</a>. A full example: <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/personalities/jesse.yaml">personalities/jesse.yaml</a>.</p>
+<div class="wrap"><table>
+<tr><th>Field</th><th>What it does</th><th>Who reads it</th></tr>
+<tr><td><code>voice</code>, <code>fish_voice</code></td><td>One voice ID per TTS provider</td><td>The worker picks the one matching the configured TTS</td></tr>
+<tr><td><code>style</code></td><td>Register, vocabulary, sentence length, humour, formality, catchphrase budget</td><td>Rendered into a short prompt block</td></tr>
+<tr><td><code>ext</code>, <code>own</code></td><td>Example lines: to strangers, and to the owner</td><td>Two are injected per stance. Models copy examples far more than adjectives.</td></tr>
+<tr><td><code>rules</code></td><td>Character constraints, such as "titles move you zero"</td><td>Appended to the style block</td></tr>
+<tr><td><code>greeting</code></td><td>Opening line for a known caller, an unknown caller, and the owner</td><td>Code speaks it, so the character starts at the first word, with no LLM delay</td></tr>
+<tr><td><code>confirm</code></td><td>One line per gated action, such as passing on a message</td><td>Code speaks it before the action fires</td></tr>
+<tr><td><code>tool_filler</code>, <code>farewell</code>, <code>hangup</code>, nudges</td><td>The short lines that cover silence, goodbyes and quiet callers</td><td>Code speaks them</td></tr>
+<tr><td><code>dials</code></td><td>Eager, Direct, Patience, Humour, from 0 to 100</td><td>Shown in the picker, converted to knobs at load. See section 6.</td></tr>
+<tr><td><code>title</code>, <code>from</code>, <code>tag</code>, <code>order</code></td><td>The card in the picker</td><td>The <code>/packs</code> API and the web pages</td></tr>
+</table></div>
+
+<h2>3. How a pack is chosen, in order</h2>
+<ol>
+<li><b>The persona's default</b>, from <code>config.yaml</code>.</li>
+<li><b>A per-call override</b> in the LiveKit dispatch metadata: <code>{"pack": "jesse"}</code>. The worker accepts it only if it's a real pack, and otherwise keeps the default, because a bad setting must never drop a call. <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/app/worker.py#L143">app/worker.py#L143</a></li>
+<li><b>Whatever sets that metadata:</b> the web API (<a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/app/api.py#L62">app/api.py#L62</a>, validated against the pack list), the web picker, or <code>scripts/call.py --pack</code>. A real product would put a settings screen here, writing the same one value.</li>
+</ol>
+<p>The voice follows the pack and the provider: <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/app/worker.py#L147">app/worker.py#L147</a>. Switching TTS provider in config changes which ID is read, with no pack logic touched.</p>
+
+<h2>4. How the agent uses a pack without depending on it</h2>
+<p>The agent never checks which personality it is. It calls small functions that return text from whichever pack is loaded: <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/proxy_core/personality.py">proxy_core/personality.py</a>, 85 lines in all.</p>
+<pre><code>render_style(pack, stance)          # the prompt block, under about 100 words
+greeting(pack, assistant, owner, name)
+owner_hello(pack, assistant, owner)
+confirm_line(pack, tool, owner)
+tool_filler(pack, n)               # rotates, so it doesn't repeat itself
+farewell(pack, n)
+hangup(pack)
+nudge_text(pack, step)
+cards()                            # every pack, shaped for a picker</code></pre>
+<p>The logic decides <b>when</b> a line is spoken: before a slow tool, before an action, at goodbye. The pack only decides <b>what it sounds like</b>. In <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/app/agent.py#L338">app/agent.py#L338</a>, for example, the decision to speak a confirmation is code, and the wording comes from <code>confirm_line(self.pack, ...)</code>.</p>
+
+<h3>What a pack can never change</h3>
+<ul>
+<li>What a caller is allowed to hear. Every record is filtered by tier in code before the model sees it, and the style block itself says "the privacy filter is unaffected by style". A rude Jesse is exactly as safe as a polite Jarvis.</li>
+<li>Whether an action needs a yes, how many violations end a call, which tools exist, or the turn-taking and latency settings.</li>
+</ul>
+
+<h2>5. Guardrails that keep new packs safe</h2>
+<ul>
+<li><b>Schema check at load:</b> a missing field fails loudly at startup.</li>
+<li><b>Voice-shape tests run on every pack's code-spoken lines:</b> at most two sentences, no lists, at most two options. A new pack with a rambling greeting fails CI. <a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/tests/test_personality.py">tests/test_personality.py</a></li>
+<li><b>A word budget on the style block,</b> so a chatty pack can't slow the LLM's first token.</li>
+</ul>
+
+<h2>6. What we learned the hard way</h2>
+<details open><summary>Lessons</summary>
+<ul>
+<li><b>Every line the agent speaks must come from the pack.</b> One hardwired goodbye was enough to break character mid-call. The hang-up goodbye now goes further: the model writes it as a parameter of the hang-up tool, and the pack line is only the fallback.</li>
+<li><b>Example lines steer more than adjectives.</b> The model copied names and phrasing from them, so keep examples generic or fitted to the domain.</li>
+<li><b>Toning a character down needs explicit bans.</b> "Less aviation talk" didn't work until the pack listed the words to avoid and capped references at one per call.</li>
+<li><b>Code-spoken greetings put the character in the first word,</b> and cost no LLM time.</li>
+<li><b>Pick voices from catalog metadata, then judge by ear.</b> We searched Cartesia's catalog by description (<a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/scripts/voices.py">scripts/voices.py</a>) and rendered one in-character line per candidate to choose. Two packs sharing a voice confused listeners, so every pack gets its own.</li>
+</ul></details>
+
+<h2>7. Honest gaps</h2>
+<ul>
+<li><b>The dials don't drive behaviour yet.</b> They're converted into knobs at load, and the picker shows them. But in this build only the nudge lines are read from knobs, while eagerness, directness, patience and humour are plumbed but unused. If you want dials that change behaviour, wire them into the code that decides when to speak, never into the prompt alone.</li>
+<li><b>Voice is tied to personality.</b> If your product lets users choose voice and personality separately, make voice its own setting, with a dispatch metadata override beside <code>pack</code>, and treat the pack's voice as its default.</li>
+<li><b>Packs are files.</b> A multi-user product would store them as rows, keeping the same schema check and the same accessor functions.</li>
+</ul>
+
+<h2>Where to look in the code</h2>
+<div class="wrap"><table>
+<tr><th>What</th><th>File</th></tr>
+<tr><td>Loading, validation and accessors</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/proxy_core/personality.py">proxy_core/personality.py</a></td></tr>
+<tr><td>Six example packs</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/tree/0048026/personalities">personalities/</a></td></tr>
+<tr><td>Per-call pack and voice selection</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/app/worker.py#L143">app/worker.py#L143</a></td></tr>
+<tr><td>Where the agent speaks pack lines</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/app/agent.py">app/agent.py</a></td></tr>
+<tr><td>Pack picker API</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/app/api.py#L108">app/api.py#L108</a></td></tr>
+<tr><td>Tests on every pack</td><td><a href="https://github.com/PranavMishra17/talk-to-me---GOOSE/blob/0048026/tests/test_personality.py">tests/test_personality.py</a></td></tr>
+</table></div>
+</main>
+</body>
+</html>
