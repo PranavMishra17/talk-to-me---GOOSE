@@ -271,6 +271,24 @@ uv run python scripts/stage.py reset
 
 The harness and bench spend a few cents each. Text turns skip `on_user_turn_completed`, so use the harness for anything in that hook.
 
+### Tuning the prompt with DSPy
+
+`scripts/optimize_prompt.py` scores the voice-style part of `app/prompts/system.txt` (voice style, dates and numbers, honesty) on the caller turns in `scripts/prompt_cases.yaml`, and can rewrite it with DSPy's GEPA optimizer. Privacy, floor rules and the agenda are never tuned. It uses LiveKit Inference, so it needs only the LiveKit keys, and it spends credits.
+
+```bash
+uv run --extra optimize python scripts/optimize_prompt.py --eval-only
+```
+
+```bash
+uv run --extra optimize python scripts/optimize_prompt.py --budget light
+```
+
+The second command writes `runtime/prompt_opt/report.md` (scores before and after, per case) and `candidate.txt`. Nothing changes until you apply it, and you should run the bench and a real call after:
+
+```bash
+uv run --extra optimize python scripts/optimize_prompt.py --apply runtime/prompt_opt/candidate.txt
+```
+
 **Common problems**
 
 | Symptom | Fix |
